@@ -397,31 +397,69 @@ static __device__ __forceinline__ float vec_dot_fattn_vec_KQ_turbo4_0(
 
     float sum = 0.0f;
 
+    if constexpr (D <= QK_TURBO4) {
+        float sc[16];
+        const float norm = __half2float(K_turbo[0].norm);
 #pragma unroll
-    for (int k_KQ_0 = 0; k_KQ_0 < D/2; k_KQ_0 += nthreads*cpy_ne) {
+        for (int c = 0; c < 16; ++c) { sc[c] = TURBO_CENTROIDS_4BIT[c] * norm; }
+
 #pragma unroll
-        for (int k_KQ_1 = 0; k_KQ_1 < cpy_ne; ++k_KQ_1) {
-            const int k_KQ = k_KQ_0 + (threadIdx.x % nthreads)*cpy_ne + k_KQ_1;
+        for (int k_KQ_0 = 0; k_KQ_0 < D/2; k_KQ_0 += nthreads*cpy_ne) {
+#pragma unroll
+            for (int k_KQ_1 = 0; k_KQ_1 < cpy_ne; ++k_KQ_1) {
+                const int k_KQ = k_KQ_0 + (threadIdx.x % nthreads)*cpy_ne + k_KQ_1;
+                const uint8_t qs_byte = K_turbo[0].qs[k_KQ];
 
-            const int elem0 = k_KQ * 2;
-            const int ib    = elem0 / QK_TURBO4;
-            const int j0    = elem0 % QK_TURBO4;
+                const uint8_t idx0 = (qs_byte >> 0) & 0xF;
+                const uint8_t idx1 = (qs_byte >> 4) & 0xF;
 
-            const float   norm    = __half2float(K_turbo[ib].norm);
-            const uint8_t qs_byte = K_turbo[ib].qs[j0 / 2];
-
-            const uint8_t idx0 = (qs_byte >> 0) & 0xF;
-            const uint8_t idx1 = (qs_byte >> 4) & 0xF;
-
-            const float2 kv = make_float2(TURBO_CENTROIDS_4BIT[idx0] * norm, TURBO_CENTROIDS_4BIT[idx1] * norm);
+                const float2 kv = make_float2(sc[idx0], sc[idx1]);
 
 #ifdef V_DOT2_F32_F16_AVAILABLE
-            const half2 qv = ((const half2 *) Q_v)[k_KQ_0/nthreads + k_KQ_1];
-            ggml_cuda_mad(sum, kv, __half22float2(qv));
+                const half2 qv = ((const half2 *) Q_v)[k_KQ_0/nthreads + k_KQ_1];
+                ggml_cuda_mad(sum, kv, __half22float2(qv));
 #else
-            const float2 qv = ((const float2 *) Q_v)[k_KQ_0/nthreads + k_KQ_1];
-            sum += kv.x * qv.x + kv.y * qv.y;
+                const float2 qv = ((const float2 *) Q_v)[k_KQ_0/nthreads + k_KQ_1];
+                sum += kv.x * qv.x + kv.y * qv.y;
 #endif // V_DOT2_F32_F16_AVAILABLE
+            }
+        }
+    } else {
+        int prev_ib = -1;
+        float sc[16];
+
+#pragma unroll
+        for (int k_KQ_0 = 0; k_KQ_0 < D/2; k_KQ_0 += nthreads*cpy_ne) {
+#pragma unroll
+            for (int k_KQ_1 = 0; k_KQ_1 < cpy_ne; ++k_KQ_1) {
+                const int k_KQ = k_KQ_0 + (threadIdx.x % nthreads)*cpy_ne + k_KQ_1;
+
+                const int elem0 = k_KQ * 2;
+                const int ib    = elem0 / QK_TURBO4;
+                const int j0    = elem0 % QK_TURBO4;
+
+                if (ib != prev_ib) {
+                    prev_ib = ib;
+                    const float norm = __half2float(K_turbo[ib].norm);
+#pragma unroll
+                    for (int c = 0; c < 16; ++c) { sc[c] = TURBO_CENTROIDS_4BIT[c] * norm; }
+                }
+
+                const uint8_t qs_byte = K_turbo[ib].qs[j0 / 2];
+
+                const uint8_t idx0 = (qs_byte >> 0) & 0xF;
+                const uint8_t idx1 = (qs_byte >> 4) & 0xF;
+
+                const float2 kv = make_float2(sc[idx0], sc[idx1]);
+
+#ifdef V_DOT2_F32_F16_AVAILABLE
+                const half2 qv = ((const half2 *) Q_v)[k_KQ_0/nthreads + k_KQ_1];
+                ggml_cuda_mad(sum, kv, __half22float2(qv));
+#else
+                const float2 qv = ((const float2 *) Q_v)[k_KQ_0/nthreads + k_KQ_1];
+                sum += kv.x * qv.x + kv.y * qv.y;
+#endif // V_DOT2_F32_F16_AVAILABLE
+            }
         }
     }
 
