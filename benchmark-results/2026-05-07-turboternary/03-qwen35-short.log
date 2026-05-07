@@ -1,0 +1,90 @@
+ggml_cuda_init: found 1 CUDA devices (Total VRAM: 7840 MiB):
+  Device 0: NVIDIA GeForce RTX 3070 Ti, compute capability 8.6, VMM: yes, VRAM: 7840 MiB
+
+Loading model... |-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/-\|/ 
+
+
+▄▄ ▄▄
+██ ██
+██ ██  ▀▀█▄ ███▄███▄  ▀▀█▄    ▄████ ████▄ ████▄
+██ ██ ▄█▀██ ██ ██ ██ ▄█▀██    ██    ██ ██ ██ ██
+██ ██ ▀█▄██ ██ ██ ██ ▀█▄██ ██ ▀████ ████▀ ████▀
+                                    ██    ██
+                                    ▀▀    ▀▀
+
+build      : b9059-cb4bc74e2
+model      : Qwen3.6-35B-A3B-Q5_K_M.gguf
+modalities : text
+
+available commands:
+  /exit or Ctrl+C     stop or exit
+  /regen              regenerate the last response
+  /clear              clear the chat history
+  /read <file>        add a text file
+  /glob <pattern>     add text files using globbing pattern
+
+
+> Write a detailed, structured technical essay about where snails live, covering habitats, climate, food sources, predators, reproduction, and ecological roles. Continue in clear paragraphs.
+
+|-\|/ [Start thinking]
+Here's a thinking thinking sequence
+
+1.  **Deconstruct the user's request:**
+    *   Topic: Where snails live.
+    *   Format: Detailed, structured technical essay.
+    *   Key aspects to cover: Habitats, climate, food sources, predators, reproduction, ecological roles.
+    *   Style: Clear paragraphs.
+
+2.  **Initial analysis and structuring:**
+    *   *Structure:* A technical essay needs a logical flow. I should organize it by the requested topics but group them coherently. A good structure might be:
+        *   Introduction: Define snails (gastropods), mention diversity, and state the scope.
+        *   Habitats: Terrestrial, freshwater, marine. Microhabitats.
+        *   Climate/Environmental Factors: Temperature, humidity, pH, salinity.
+        *   Food Sources/Trophic Ecology: Herbivory, carnivory, detritivory.
+        *   Predators: Biotic pressures.
+        *   Reproduction: Mating strategies, egg-laying, survival in different environments.
+        *   Ecological Roles: Nutrient cycling, bioindicators, food web dynamics.
+        *   Conclusion: Summary of adaptability and importance.
+    *   *Tone:* Technical, objective, informative. Use terms like "Gastropoda," "mollusks," "estivation," "diapause," "bioindicators," etc.
+
+3.  **Drafting content - Section by Section:**
+    *   *Introduction:* Snails are gastropod mollusks. They are ubiquitous. "Where they live" isn't just a location; it's a range of niches. Mention the shell's role in habitat selection (protection vs. mobility).
+    *   *Habitats:*
+        *   *Marine:* Intertidal zones, deep sea, coral reefs. Mention specific adaptations (operculum, gills).
+        *   *Freshwater:* Rivers, lakes, ponds. Need for calcium. Mention pulmonate vs. prosobranch distinctions briefly if relevant to habitat.
+        *   *Terrestrial:* Forests, deserts, gardens. Soil moisture is key. Nocturnal activity to avoid desiccation.
+        *   *Microhabitats:* Under logs, leaf litter, crevices. This adds detail.
+    *   *Climate/Environmental Parameters:*
+        *   *Temperature:* Ectothermic. Range varies. Some freeze, some heat.
+        *   *Moisture/Humidity:* Critical for terrestrial snails. Cutaneous respiration requires moisture. Estivation as a response to dry climates.
+        *   *Chemical factors:* pH affects shell formation (calcium carbonate). Salinity tolerance in euryhaline species.
+    *   *Food Sources:*
+        *   *Dietary diversity:* Not just lettuce.
+        *   *Herbivores:* Grazing algae, browsing leaves.
+        *   *Carnivores:* Other snails, eggs, worms. Radula adaptation.
+        *   *Detritivores/Scavengers:* Decomposition.
+        *   *Symbiosis:* Some have gut flora for digestion.
+    *   *Predators:*
+        *   *Biotic pressure:* Birds, mammals, insects, other snails (cannibalism), nematodes.
+        *   *Defense mechanisms:* Retraction, operculum, mucus, toxicity (some marine snails), camouflage.
+        *   *Impact on distribution:* Predators can limit where snails live (e.g., avoiding open areas).
+    *   *Reproduction:*
+        *   *Strategies:* Hermaphroditism (common in terrestrial/freshwater) vs. dioecious (common in marine).
+        *   *Mating:* Love darts (calcium carbonate structures), courtship.
+        *   *Egg-laying:* Substrate selection. Moisture retention.
+        *   *Development:* Direct development vs. larval stages (veliger larvae in marine).
+        *   *Connection to "Where":* Reproduction sites must match environmental needs (moisture for eggs).
+    *   *Ecological Roles:*
+        *   *Nutrient Cycling:* Breaking down organic matter. Excreting nutrients.
+        *   *Bioindicators:* Sensitive to pollution, pH, heavy metals.
+        *   *Food Web:* Prey base.
+        *   *Parasitism:* Some are intermediate hosts for parasites (schistosomiasis). This is a crucial technical point.
+        *   *Invasive species:* Disruption of native ecosystems.
+    *   *Conclusion:* Synthesize. Snails are adaptable but constrained by watercommon_memory_breakdown_print: | memory breakdown [MiB]  | total   free     self   model   context   compute    unaccounted |
+common_memory_breakdown_print: |   - CUDA0 (RTX 3070 Ti) |  7840 =  411 + ( 6441 =  4249 +    1215 +     977) +         986 |
+common_memory_breakdown_print: |   - Host                |                 19831 = 19323 +       0 +     508                |
+
+
+[ Prompt: 109.2 t/s | Generation: 45.3 t/s ]
+
+Exiting...
