@@ -1,0 +1,6 @@
+# TernaryTurboQuant benchmark run
+2026-05-07T12:45:28+01:00
+5c136e3ba
+## turboternary
+?? benchmark-results/
+NVIDIA GeForce RTX 3070 Ti, 8192 MiB, 595.58.03
