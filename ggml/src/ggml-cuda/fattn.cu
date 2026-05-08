@@ -306,6 +306,9 @@ static void ggml_cuda_flash_attn_ext_vec(ggml_backend_cuda_context & ctx, ggml_t
     FATTN_VEC_CASES_ALL_D(GGML_TYPE_Q4_0, GGML_TYPE_Q4_0)
     FATTN_VEC_CASES_ALL_D(GGML_TYPE_Q8_0, GGML_TYPE_Q8_0)
     FATTN_VEC_CASES_ALL_D(GGML_TYPE_BF16, GGML_TYPE_BF16)
+    FATTN_VEC_CASES_ALL_D(GGML_TYPE_F16,  GGML_TYPE_TURBO2_0)
+    FATTN_VEC_CASES_ALL_D(GGML_TYPE_F16,  GGML_TYPE_TURBO3_0)
+    FATTN_VEC_CASES_ALL_D(GGML_TYPE_F16,  GGML_TYPE_TURBO4_0)
     FATTN_VEC_CASES_ALL_D(GGML_TYPE_TURBO4_0, GGML_TYPE_TURBO3_0)
 #endif // GGML_CUDA_FA_ALL_QUANTS
 
@@ -449,7 +452,8 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
     // other Turbo combinations must use the generic dequantize-to-f16 paths.
     const bool any_turbo_kv = K->type == GGML_TYPE_TURBO2_0 || K->type == GGML_TYPE_TURBO3_0 || K->type == GGML_TYPE_TURBO4_0 ||
                               V->type == GGML_TYPE_TURBO2_0 || V->type == GGML_TYPE_TURBO3_0 || V->type == GGML_TYPE_TURBO4_0;
-    const bool supported_turbo_vec = K->type == GGML_TYPE_TURBO4_0 && V->type == GGML_TYPE_TURBO3_0;
+    const bool supported_turbo_vec = (K->type == GGML_TYPE_TURBO4_0 && V->type == GGML_TYPE_TURBO3_0) ||
+                                      (K->type == GGML_TYPE_F16 && (V->type == GGML_TYPE_TURBO2_0 || V->type == GGML_TYPE_TURBO3_0 || V->type == GGML_TYPE_TURBO4_0));
     const bool can_use_vector_kernel = Q->ne[0] <= 256 && Q->ne[0] % 64 == 0 && K->ne[1] % FATTN_KQ_STRIDE == 0 &&
                                        (!any_turbo_kv || supported_turbo_vec);
 
