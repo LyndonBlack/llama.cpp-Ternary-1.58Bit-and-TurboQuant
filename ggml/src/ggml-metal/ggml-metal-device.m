@@ -1164,7 +1164,23 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
                 return false;
             }
             if (op->src[1]->type != op->src[2]->type) {
-                return false;
+                // Allow asymmetric K/V for supported mixed pairs:
+                // - turbo x turbo (any combination)
+                // - q8_0 x turbo (either direction)
+                const bool k_is_turbo = (op->src[1]->type == GGML_TYPE_TURBO2_0 ||
+                                         op->src[1]->type == GGML_TYPE_TURBO3_0 ||
+                                         op->src[1]->type == GGML_TYPE_TURBO4_0);
+                const bool v_is_turbo = (op->src[2]->type == GGML_TYPE_TURBO2_0 ||
+                                         op->src[2]->type == GGML_TYPE_TURBO3_0 ||
+                                         op->src[2]->type == GGML_TYPE_TURBO4_0);
+                const bool k_is_q8 = (op->src[1]->type == GGML_TYPE_Q8_0);
+                const bool v_is_q8 = (op->src[2]->type == GGML_TYPE_Q8_0);
+                const bool supported = (k_is_turbo && v_is_turbo) ||
+                                       (k_is_q8 && v_is_turbo) ||
+                                       (k_is_turbo && v_is_q8);
+                if (!supported) {
+                    return false;
+                }
             }
             switch (op->src[1]->type) {
                 case GGML_TYPE_F32:
@@ -1174,6 +1190,9 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
                 case GGML_TYPE_Q4_1:
                 case GGML_TYPE_Q5_0:
                 case GGML_TYPE_Q5_1:
+                case GGML_TYPE_TURBO2_0:
+                case GGML_TYPE_TURBO3_0:
+                case GGML_TYPE_TURBO4_0:
                     break;
                 case GGML_TYPE_BF16:
                     if (!has_bfloat) {
@@ -1192,6 +1211,8 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
             return true;
         case GGML_OP_GATED_DELTA_NET:
             return has_simdgroup_reduction && op->src[2]->ne[0] % 32 == 0;
+        case GGML_OP_TURBO_WHT:
+            return op->src[0]->ne[0] % 128 == 0;
         case GGML_OP_SOLVE_TRI:
         case GGML_OP_MUL_MAT:
         case GGML_OP_MUL_MAT_ID:
@@ -1216,6 +1237,9 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
                            case GGML_TYPE_Q5_1:
                            case GGML_TYPE_IQ4_NL:
                            case GGML_TYPE_I32:
+                           case GGML_TYPE_TURBO2_0:
+                           case GGML_TYPE_TURBO3_0:
+                           case GGML_TYPE_TURBO4_0:
                                 return true;
                            default:
                                 return false;
@@ -1274,6 +1298,9 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
                     case GGML_TYPE_Q5_0:
                     case GGML_TYPE_Q5_1:
                     case GGML_TYPE_IQ4_NL:
+                    case GGML_TYPE_TURBO2_0:
+                    case GGML_TYPE_TURBO3_0:
+                    case GGML_TYPE_TURBO4_0:
                         return true;
                     default:
                         return false;
