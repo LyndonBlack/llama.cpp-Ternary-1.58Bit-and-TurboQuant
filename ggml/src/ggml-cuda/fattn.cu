@@ -398,8 +398,18 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
     }
 
 #ifndef GGML_CUDA_FA_ALL_QUANTS
-    if (K->type != V->type && !(K->type == GGML_TYPE_TURBO4_0 && V->type == GGML_TYPE_TURBO3_0)) {
-        return BEST_FATTN_KERNEL_NONE;
+    if (K->type != V->type) {
+        // Allow mixed KV types for combinations supported by the generic FA
+        // path. The VEC dispatch below is still limited to compiled template
+        // instances, but large prefill should be free to use MMA/TILE paths
+        // with temporary f16 dequantization, matching TheTom's TurboQuant fork.
+        auto is_kv_compat = [](ggml_type t) {
+            return t == GGML_TYPE_TURBO2_0 || t == GGML_TYPE_TURBO3_0 || t == GGML_TYPE_TURBO4_0
+                || t == GGML_TYPE_Q8_0 || t == GGML_TYPE_F16 || t == GGML_TYPE_BF16;
+        };
+        if (!is_kv_compat(K->type) || !is_kv_compat(V->type)) {
+            return BEST_FATTN_KERNEL_NONE;
+        }
     }
 #endif // GGML_CUDA_FA_ALL_QUANTS
 
@@ -417,8 +427,12 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
         case GGML_TYPE_Q8_0:
         case GGML_TYPE_BF16:
             break;
+        case GGML_TYPE_TURBO2_0:
+        case GGML_TYPE_TURBO3_0:
         case GGML_TYPE_TURBO4_0:
-            if (V->type != GGML_TYPE_TURBO3_0) {
+            // Turbo VEC kernels are instantiated for D in {64, 128, 256};
+            // larger prefill can still use the generic dequantize-to-f16 paths.
+            if (K->ne[0] % 64 != 0) {
                 return BEST_FATTN_KERNEL_NONE;
             }
             break;
@@ -430,15 +444,14 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
         return BEST_FATTN_KERNEL_NONE;
     }
 
-    // For small batch sizes the vector kernel may be preferable over the kernels optimized for large batch sizes:
-    const bool can_use_vector_kernel = Q->ne[0] <= 256 && Q->ne[0] % 64 == 0 && K->ne[1] % FATTN_KQ_STRIDE == 0;
-
-    // Turbo KV currently has only the VEC FlashAttention specialization enabled here.
-    // Do not let the generic selector fall through to MMA F16: there is no valid
-    // Turbo MMA kernel and it can dispatch a null function pointer.
-    if (K->type == GGML_TYPE_TURBO4_0 && V->type == GGML_TYPE_TURBO3_0) {
-        return can_use_vector_kernel ? BEST_FATTN_KERNEL_VEC : BEST_FATTN_KERNEL_NONE;
-    }
+    // For small batch sizes the vector kernel may be preferable over the kernels optimized for large batch sizes.
+    // Turbo VEC is only instantiated for the mixed K=turbo4_0, V=turbo3_0 case;
+    // other Turbo combinations must use the generic dequantize-to-f16 paths.
+    const bool any_turbo_kv = K->type == GGML_TYPE_TURBO2_0 || K->type == GGML_TYPE_TURBO3_0 || K->type == GGML_TYPE_TURBO4_0 ||
+                              V->type == GGML_TYPE_TURBO2_0 || V->type == GGML_TYPE_TURBO3_0 || V->type == GGML_TYPE_TURBO4_0;
+    const bool supported_turbo_vec = K->type == GGML_TYPE_TURBO4_0 && V->type == GGML_TYPE_TURBO3_0;
+    const bool can_use_vector_kernel = Q->ne[0] <= 256 && Q->ne[0] % 64 == 0 && K->ne[1] % FATTN_KQ_STRIDE == 0 &&
+                                       (!any_turbo_kv || supported_turbo_vec);
 
     // If Turing tensor cores are available, use them:
     if (turing_mma_available(cc) && Q->ne[0] != 40 && Q->ne[0] != 72) {
