@@ -159,6 +159,21 @@ llama_kv_cache::llama_kv_cache(
 
     const bool is_mla = hparams.is_mla();
 
+    // Experimental TurboKV quality probe: allow selected edge layers to keep q8_0 K
+    // while the rest use the requested Turbo K type. Disabled unless env vars are set.
+    const char * TURBO_K_Q8_LAST_N  = getenv("TURBO_K_Q8_LAST_N");
+    const char * TURBO_K_Q8_FIRST_N = getenv("TURBO_K_Q8_FIRST_N");
+    const int turbo_k_q8_last_n  = TURBO_K_Q8_LAST_N  ? std::max(0, atoi(TURBO_K_Q8_LAST_N))  : 0;
+    const int turbo_k_q8_first_n = TURBO_K_Q8_FIRST_N ? std::max(0, atoi(TURBO_K_Q8_FIRST_N)) : 0;
+    const bool turbo_k_adaptive_q8 =
+        (turbo_k_q8_last_n > 0 || turbo_k_q8_first_n > 0) &&
+        (type_k == GGML_TYPE_TURBO3_0 || type_k == GGML_TYPE_TURBO4_0 || type_k == GGML_TYPE_TURBO2_0);
+
+    if (turbo_k_adaptive_q8) {
+        LLAMA_LOG_INFO("%s: TurboKV adaptive K active: first %d + final %d layers use q8_0 K instead of %s (TURBO_K_Q8_FIRST_N/TURBO_K_Q8_LAST_N)\n",
+                __func__, turbo_k_q8_first_n, turbo_k_q8_last_n, ggml_type_name(type_k));
+    }
+
     for (uint32_t il = 0; il < hparams.n_layer; il++) {
         if (!hparams.has_kv(il)) {
             LLAMA_LOG_DEBUG("%s: layer %3d: does not have KV cache\n", __func__, il);
@@ -209,6 +224,11 @@ llama_kv_cache::llama_kv_cache(
 
         ggml_type layer_type_k = type_k;
         ggml_type layer_type_v = type_v;
+
+        if (turbo_k_adaptive_q8 && (il < (uint32_t) turbo_k_q8_first_n || il + (uint32_t) turbo_k_q8_last_n >= hparams.n_layer)) {
+            layer_type_k = GGML_TYPE_Q8_0;
+            LLAMA_LOG_DEBUG("%s: layer %3d: adaptive K type = q8_0\n", __func__, il);
+        }
 
         const bool k_is_turbo_alloc =
             layer_type_k == GGML_TYPE_TURBO3_0 ||
