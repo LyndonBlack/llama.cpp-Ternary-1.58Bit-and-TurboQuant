@@ -1,14 +1,236 @@
-# llama.cpp
+# llama.cpp — Ternary 1.58-bit + TurboQuant fork
 
 ![llama](https://user-images.githubusercontent.com/1991296/230134379-7181e485-c521-4d23-a0d6-f7b3b61ba524.png)
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Release](https://img.shields.io/github/v/release/ggml-org/llama.cpp)](https://github.com/ggml-org/llama.cpp/releases)
-[![Server](https://github.com/ggml-org/llama.cpp/actions/workflows/server.yml/badge.svg)](https://github.com/ggml-org/llama.cpp/actions/workflows/server.yml)
+[![Upstream](https://img.shields.io/badge/upstream-ggml--org%2Fllama.cpp-blue)](https://github.com/ggml-org/llama.cpp)
 
-[Manifesto](https://github.com/ggml-org/llama.cpp/discussions/205) / [ggml](https://github.com/ggml-org/ggml) / [ops](https://github.com/ggml-org/llama.cpp/blob/master/docs/ops.md)
+This fork combines current `llama.cpp` with two local research tracks:
 
-LLM inference in C/C++
+1. **Ternary / Q2_0 model support** for 1.58-bit-style GGUF models, including the Ternary Bonsai Q2_0 path.
+2. **TurboQuant / TurboKV cache compression** for long-context inference with compressed K/V cache types.
+
+Repository: <https://github.com/LyndonBlack/llama.cpp-Ternary-1.58Bit-and-TurboQuant>
+
+The upstream `llama.cpp` README is preserved below this fork overview, because the normal build, server, API, model, and ecosystem documentation still applies unless noted otherwise.
+
+## What this branch adds
+
+### Ternary Bonsai / Q2_0 support
+
+This branch carries Prism-derived Q2_0 / ternary model support and has been validated with:
+
+- `Ternary-Bonsai-8B-Q2_0.gguf`
+- CUDA execution on an NVIDIA RTX 3070 Ti
+- `llama-cli`, `llama-server`, and `llama-bench` workflows
+
+The Ternary Bonsai model has been useful as a fast local helper and as a quality canary for TurboKV experiments because it is small enough to test quickly while still being sensitive to KV-cache retrieval errors.
+
+### TurboQuant / TurboKV integration
+
+Added ggml KV-cache types:
+
+- `turbo2_0`
+- `turbo3_0`
+- `turbo4_0`
+
+Main runtime path under test:
+
+```bash
+--flash-attn on -ctk turbo4_0 -ctv turbo3_0
+```
+
+Current robust production-style path when quality matters more than maximum K compression:
+
+```bash
+--flash-attn on -ctk q8_0 -ctv turbo3_0
+```
+
+Why the split? Testing showed that compressed values are generally useful, but aggressive key compression can break code-retrieval workloads. For Bonsai CodeNeedle, `K=q8_0/V=turbo3_0` kept quality high while still saving memory versus q8/q8.
+
+### CUDA and Metal integration
+
+The branch includes:
+
+- TurboKV cache construction and CLI/server parsing for Turbo cache types.
+- CUDA FlashAttention support for mixed TurboKV combinations.
+- CUDA dequantize-to-f16 FlashAttention fallback coverage for compatible mixed TurboKV paths.
+- F16-K + Turbo-V CUDA FlashAttention dispatch.
+- Metal TurboKV support merged into the stable branch.
+- Experimental env-gated adaptive K-cache knobs for controlled testing:
+
+```bash
+TURBO_K_Q8_FIRST_N=<layers>
+TURBO_K_Q8_LAST_N=<layers>
+```
+
+Those adaptive knobs are deliberately experimental. They are useful for probing layer sensitivity, but Bonsai `send_head` testing showed partial adaptive K did **not** rescue the failing full-compressed-K case; only all-q8 K passed that target.
+
+## Recommended commands
+
+### CUDA build used locally
+
+```bash
+cmake -S . -B build \
+  -DGGML_CUDA=ON \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=gcc-13 \
+  -DCMAKE_CXX_COMPILER=g++-13 \
+  -DCMAKE_CUDA_HOST_COMPILER=g++-13
+cmake --build build --target llama-cli llama-server llama-bench -j8
+```
+
+Older local builds also used static libstdc++/libgcc linker flags to avoid local CUDA/libstdc++ mismatches. If your toolchain is clean, the command above is preferred.
+
+### Ternary Bonsai server — quality-oriented TurboKV
+
+```bash
+./build/bin/llama-server \
+  -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf \
+  --alias ternary-bonsai-q2 \
+  -ngl 99 \
+  --ctx-size 32768 \
+  --flash-attn on \
+  -ctk q8_0 \
+  -ctv turbo3_0
+```
+
+### Ternary Bonsai server — maximum tested K/V compression path
+
+```bash
+./build/bin/llama-server \
+  -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf \
+  --alias ternary-bonsai-q2 \
+  -ngl 99 \
+  --ctx-size 32768 \
+  --flash-attn on \
+  -ctk turbo4_0 \
+  -ctv turbo3_0
+```
+
+### Large Qwen MoE long-context command shape
+
+```bash
+./build/bin/llama-cli \
+  -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  -ngl 99 \
+  --n-cpu-moe 35 \
+  --no-mmap \
+  --mlock \
+  --flash-attn on \
+  -ctk turbo4_0 \
+  -ctv turbo3_0 \
+  --reasoning off \
+  -c 256000
+```
+
+For Qwen reasoning models, `--reasoning off` is recommended for benchmark harnesses such as CodeNeedle unless thinking output is explicitly desired.
+
+## Testing and benchmark summary
+
+Detailed logs live in:
+
+- [`docs/turboternary/`](docs/turboternary/)
+- [`benchmark-results/2026-05-07-turboternary/`](benchmark-results/2026-05-07-turboternary/)
+
+### Ternary Bonsai performance
+
+Validated on `Ternary-Bonsai-8B-Q2_0.gguf` with `--flash-attn on -ctk turbo4_0 -ctv turbo3_0`:
+
+- 4096-token deterministic 65k-context run: about `96.5-99.6 tok/s` generation.
+- `llama-bench -p 512 -n 128 -r 1`: about `1133-1202 pp512 tok/s`, `101-106 tg128 tok/s` depending on checkpoint.
+- 64k allocation smoke: `2124 MiB` KV buffer (`K turbo4_0` `1224 MiB`, `V turbo3_0` `900 MiB`).
+
+### Ternary Bonsai long-context memory smoke tests
+
+At commit `45f08eff7` on RTX 3070 Ti:
+
+- 96k, `K=turbo4_0/V=turbo3_0`: fit fully in GPU RAM, KV `3186 MiB`, short-generation eval about `104.86 tok/s`.
+- 128k, `K=turbo4_0/V=turbo3_0`: allocation and coherent short generation passed, KV `4248 MiB`; auto-fit offloaded part of the model/context.
+- 128k, `K=q8_0/V=turbo3_0`: allocation and coherent short generation passed, KV `6696 MiB`; higher quality expectation, larger K memory.
+
+### Qwen3.6 35B A3B performance
+
+Validated with `Qwen3.6-35B-A3B-Q5_K_M.gguf`, CPU MoE offload, 256k context setting, and TurboKV:
+
+- Short 256k-context run: prompt about `109 tok/s`, generation about `45 tok/s`.
+- Longer local run held around `43 tok/s`, matching or slightly exceeding the older dedicated TurboQuant fork in this environment.
+- After the CUDA prefill fix, `llama-bench` smoke results with CPU MoE experts were around `pp512 443 tok/s`, `tg32 42 tok/s`; `pp4096 429 tok/s`, `tg16 42 tok/s`.
+
+### CodeNeedle quality testing
+
+CodeNeedle has been used as a retrieval/code-quality gate, not just a speed benchmark:
+
+- Qwen3.6 35B `http_server` with full `K=turbo4_0/V=turbo3_0`: relaxed score `11/11`, `214/220` primary lines after indentation relaxation in one reviewed run.
+- Qwen3.6 jQuery comparison after prefill fix:
+  - no compression: `15/16`, `273/320` primary, `31` hallucinated
+  - `K=turbo4_0/V=turbo3_0`: `15/16`, `276/320` primary, `63` hallucinated
+  - high-quality K + compressed V: `15/16`, `287/320` primary, `32` hallucinated
+- Bonsai `http_server` 32k comparison:
+  - `K=q8_0/V=q8_0`: relaxed `11/11`, `207/220` primary
+  - `K=turbo4_0/V=turbo3_0`: relaxed `10/11`, major `send_head` failure
+  - `K=q8_0/V=turbo3_0`: relaxed `11/11`, `218/220` primary — best Bonsai quality/memory balance tested so far
+
+Interpretation: raw speed and recall are not enough. KV compression must also preserve useful coding/assistant behavior. Future evaluation should include Prompt-Vault in addition to CodeNeedle.
+
+## Current technical notes
+
+### Turbo3 block size
+
+This branch already uses Turbo3 block size 128:
+
+```text
+QK_TURBO3       = 128
+QK_TURBO3_GROUP = 128
+block_turbo3_0  = 50 bytes
+3.125 bits/value, about 5.12x versus fp16 KV
+```
+
+The CUDA set-rows path already launches 128-thread WHT groups for this mode.
+
+### Recommended KV-cache guidance
+
+- **Best quality/memory compromise so far:** `-ctk q8_0 -ctv turbo3_0`
+- **Best memory compression tested:** `-ctk turbo4_0 -ctv turbo3_0`
+- **Known risk:** full compressed K can fail targeted code retrieval even when generation looks coherent.
+- **Not promising so far:** layer-only adaptive K protection; Bonsai `send_head` failed unless all K layers were q8.
+
+## Research sources and references
+
+This branch pulls ideas, comparisons, or implementation clues from several places. Licensing matters: not all code is suitable for direct copying.
+
+- Upstream `llama.cpp`: <https://github.com/ggml-org/llama.cpp>
+- This fork: <https://github.com/LyndonBlack/llama.cpp-Ternary-1.58Bit-and-TurboQuant>
+- PrismML llama.cpp work: <https://github.com/PrismML-Eng/llama.cpp>
+- TheTom llama.cpp TurboQuant work: <https://github.com/TheTom/llama-cpp-turboquant>
+- TheTom TurboQuant Plus: <https://github.com/TheTom/turboquant_plus>
+- 0xSero TurboQuant: <https://github.com/0xSero/turboquant> — GPL-3.0 local repo; use as architectural reference only, do not copy into this MIT fork.
+- tonbistudio TurboQuant PyTorch: <https://github.com/tonbistudio/turboquant-pytorch> — useful corrected findings around MSE-only/no-QJL, asymmetric K/V, residual windows, and generation quality.
+- pitcany Ollama TurboQuant: <https://github.com/pitcany/ollama-turboquant> — future runtime/kernel integration lead.
+- CodeNeedle benchmark: <https://github.com/alexziskind1/codeneedle>
+- Prompt-Vault prompt suite: <https://github.com/w512/Prompt-Vault>
+- Entropy-adaptive KV-cache lead: <https://github.com/SCJedi/entropy-adaptive-kv-cache>
+- Independent TurboQuant landscape analysis: <https://www.frr.dev/posts/turboquant-one-month-later-implementations-controversy-benchmarks/>
+
+Key research conclusions driving this branch:
+
+- MSE/PolarQuant-style compression is useful; QJL has not looked attractive in practical community implementations.
+- Asymmetric K/V precision is important: keys need more care than values.
+- Code and assistant-style tests are necessary; MSE/cosine/needle metrics alone can miss quality failures.
+- For real K memory savings, the next promising path is likely a higher-precision MSE-only K format such as K5/K6/q6-ish/turbo6-style, not layer-only K protection.
+
+## Branch policy
+
+Treat the current branch as a working integration branch. More invasive work should happen on feature branches, for example:
+
+- `turboternary-turbo-k5-k6`
+- `turboternary-residual-window`
+- `turboternary-ollama-runtime-review`
+- `turboternary-prompt-vault-eval`
+
+## Upstream llama.cpp README
+
+The remaining sections are inherited from upstream `llama.cpp`.
 
 ## Recent API changes
 
