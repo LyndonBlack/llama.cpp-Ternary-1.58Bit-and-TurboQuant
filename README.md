@@ -268,7 +268,9 @@ Through extensive CodeNeedle retrieval testing and Prompt-Vault generative codin
 - **Memory-constrained (recommended fallback):** `-ctk turbo6_0 -ctv turbo3_0` — passes all retrieval gates, minor generative trade-off, ~1100 MiB savings vs q8/q8. Use when you need to fit a larger context on limited VRAM.
 - **Avoid:** `-ctk turbo4_0` — fails code retrieval benchmarks (3/20 send_head) and adds hallucinations even on large models
 - **Known risk:** Full compressed K can subtly degrade generative coding consistency even when retrieval looks fine. Test both if quality is critical.
-- **Not promising:** Layer-only adaptive K protection (env knobs `TURBO_K_Q8_FIRST_N` / `TURBO_K_Q8_LAST_N`) — Bonsai `send_head` failed unless all K layers were q8; any single turbo-compressed layer could break retrieval.
+- **Not promising (discounted):**
+  - Layer-only adaptive K protection (env knobs `TURBO_K_Q8_FIRST_N` / `TURBO_K_Q8_LAST_N`) — Bonsai `send_head` failed unless all K layers were q8; any single turbo-compressed layer could break retrieval.
+  - Pre-RoPE K quantization (branch `turboternary-poc-prerope-k`) — numerical validation showed +0.02 dB SNR improvement for turbo4 pre-RoPE vs post-RoPE, i.e. essentially zero. The quality regression with 4-bit K is inherent to the precision, not the RoPE ordering. See `tools/prerope-validate.cpp`.
 
 ## Research sources and references
 
