@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task Manager</title>
+  <style>
+    body {
+      background-color: #f0f0f0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    #task-counter {
+      font-size: 18px;
+      margin-bottom: 20px;
+      color: #333;
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 20px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    li {
+      padding: 10px;
+      margin: 5px 0;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      display: flex;
+      align-items: center;
+      width: 200px;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    li.completed {
+      text-decoration: line-through;
+      color: #888;
+    }
+
+    li.completed.active {
+      text-decoration: none;
+      color: #007BFF;
+    }
+
+    .task-button {
+      background-color: #ff4d4d;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+
+    .task-button:hover {
+      background-color: #e71c1c;
+    }
+
+    input[type="text"] {
+      padding: 10px;
+      width: 200px;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px 15px;
+      font-size: 16px;
+      margin-left: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="task-counter">
+    Total: <span id="total-count">0</span>
+  </div>
+
+  <h1>Task Manager</h1>
+
+  <div>
+    <input type="text" id="task-input" placeholder="Enter a new task">
+    <button onclick="addTask()">Add Task</button>
+  </div>
+
+  <ul id="task-list"></ul>
+
+  <button onclick="clearAll()">Clear All</button>
+
+  <script>
+    const taskInput = document.getElementById('task-input');
+    const taskList = document.getElementById('task-list');
+    const totalCount = document.getElementById('total-count');
+
+    // Task data (initial tasks)
+    const initialTasks = [
+      { text: "Buy groceries", completed: false },
+      { text: "Walk the dog", completed: false },
+      { text: "Finish project", completed: false },
+      { text: "Call mom", completed: false },
+      { text: "Read a book", completed: false }
+    ];
+
+    // Initialize the task list
+    function initTasks() {
+      taskList.innerHTML = '';
+      initialTasks.forEach(task => {
+        const li = document.createElement('li');
+        li.className = 'task-container';
+        li.innerHTML = `
+          <span class="task-text">${task.text}</span>
+          <button class="task-button" onclick="deleteTask(${task.id})">✕</button>
+        `;
+        taskList.appendChild(li);
+      });
+      updateCounter();
+    }
+
+    // Add a new task
+    function addTask() {
+      const text = taskInput.value.trim();
+      if (text !== '') {
+        const newTask = {
+          id: initialTasks.length + 1,
+          text: text,
+          completed: false
+        };
+        initialTasks.push(newTask);
+        initTasks();
+        taskInput.value = '';
+      }
+    }
+
+    // Delete a task
+    function deleteTask(taskId) {
+      const task = initialTasks.find(t => t.id === taskId);
+      if (task) {
+        initialTasks.splice(initialTasks.indexOf(task), 1);
+        initTasks();
+        updateCounter();
+      }
+    }
+
+    // Toggle task completion
+    function toggleTask(taskId) {
+      const task = initialTasks.find(t => t.id === taskId);
+      if (task) {
+        task.completed = !task.completed;
+        updateCounter();
+        updateTaskDisplay(task);
+      }
+    }
+
+    // Update the task display
+    function updateTaskDisplay(task) {
+      const li = document.querySelector(`li.task-container[style*="task-${task.id}"]`);
+      if (li) {
+        li.querySelector('.task-text').classList.toggle('completed');
+        li.querySelector('.task-button').textContent = task.completed ? '✔' : '✕';
+      }
+    }
+
+    // Update the counter
+    function updateCounter() {
+      totalCount.textContent = initialTasks.length;
+      updateActiveAndCompleted();
+    }
+
+    // Update active and completed counts
+    function updateActiveAndCompleted() {
+      const active = initialTasks.filter(t => !t.completed).length;
+      const completed = initialTasks.filter(t => t.completed).length;
+      const total = active + completed;
+
+      // Update the counter
+      totalCount.textContent = total;
+
+      // Update active and completed
+      const activeText = document.getElementById('active-count');
+      const completedText = document.getElementById('completed-count');
+      activeText.textContent = `Active: ${active}`;
+      completedText.textContent = `Completed: ${completed}`;
+    }
+
+    // Initialize the tasks
+    initTasks();
+
+    // Clear all tasks
+    function clearAll() {
+      initialTasks.length = 0;
+      initTasks();
+      updateCounter();
+    }
+  </script>
+
+</body>
+</html>
+

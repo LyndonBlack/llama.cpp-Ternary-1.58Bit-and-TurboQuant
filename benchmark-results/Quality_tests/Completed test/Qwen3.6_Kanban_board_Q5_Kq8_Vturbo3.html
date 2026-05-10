@@ -1,0 +1,1727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #1a1d27;
+  --bg-card: #1e2130;
+  --bg-card-hover: #252839;
+  --glass-bg: rgba(30, 33, 48, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-border-hover: rgba(255, 255, 255, 0.12);
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --accent-blue: #6366f1;
+  --accent-blue-hover: #818cf8;
+  --priority-low: #22c55e;
+  --priority-low-bg: rgba(34, 197, 94, 0.12);
+  --priority-medium: #f59e0b;
+  --priority-medium-bg: rgba(245, 158, 11, 0.12);
+  --priority-high: #ef4444;
+  --priority-high-bg: rgba(239, 68, 68, 0.12);
+  --danger: #ef4444;
+  --danger-hover: #f87171;
+  --success: #22c55e;
+  --drop-highlight: rgba(99, 102, 241, 0.15);
+  --drop-border: rgba(99, 102, 241, 0.5);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.4);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-pill: 999px;
+  --transition-fast: 150ms ease;
+  --transition-normal: 250ms ease;
+  --transition-slow: 400ms ease;
+}
+
+html {
+  font-size: 15px;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: auto;
+  padding-bottom: 64px; /* space for stats bar */
+}
+
+/* ============================================================
+   HEADER & CONTROLS
+   ============================================================ */
+.board-header {
+  padding: 24px 32px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.board-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #e4e4e7, #a1a1aa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  padding: 8px 16px 8px 38px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  width: 220px;
+  position: relative;
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.search-wrapper {
+  position: relative;
+}
+
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  font-size: 0.85rem;
+}
+
+.filter-select {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-pill);
+  padding: 8px 32px 8px 16px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  transition: border-color var(--transition-fast);
+}
+
+.filter-select:focus {
+  border-color: var(--accent-blue);
+}
+
+.filter-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   BOARD LAYOUT
+   ============================================================ */
+.board {
+  display: flex;
+  gap: 20px;
+  padding: 16px 32px 32px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: flex-start;
+  scroll-behavior: smooth;
+  min-height: calc(100vh - 140px);
+}
+
+.board::-webkit-scrollbar {
+  height: 8px;
+}
+
+.board::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.board::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.board::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* ============================================================
+   COLUMN
+   ============================================================ */
+.column {
+  flex: 0 0 320px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 160px);
+}
+
+.column-header-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-bottom: none;
+  position: relative;
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  cursor: default;
+  user-select: none;
+}
+
+.column-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.column-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: -0.01em;
+  outline: none;
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: background var(--transition-fast);
+  width: 100%;
+}
+
+.column-name:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.column-name:focus {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 2px var(--accent-blue);
+}
+
+.card-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  min-width: 28px;
+  text-align: center;
+}
+
+.column-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.column:hover .column-actions {
+  opacity: 1;
+}
+
+.col-action-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  line-height: 1;
+}
+
+.col-action-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.col-action-btn.delete-col:hover {
+  color: var(--danger);
+  background: var(--priority-high-bg);
+}
+
+.column-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-top: none;
+  border-radius: 0 0 var(--radius) var(--radius);
+  transition: background var(--transition-normal), border-color var(--transition-normal);
+  min-height: 80px;
+}
+
+.column-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.column-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.column-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+/* Drop zone highlight */
+.column-body.drag-over {
+  background: var(--drop-highlight);
+  border-color: var(--drop-border);
+  animation: dropPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dropPulse {
+  0%, 100% { border-color: rgba(99, 102, 241, 0.3); }
+  50% { border-color: rgba(99, 102, 241, 0.6); }
+}
+
+.column-body.drop-above {
+  border-top: 2px solid var(--drop-border);
+}
+
+.column-body.drop-below {
+  border-bottom: 2px solid var(--drop-border);
+}
+
+/* ============================================================
+   ADD COLUMN BUTTON
+   ============================================================ */
+.add-column-btn {
+  flex: 0 0 320px;
+  min-width: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  height: fit-content;
+  margin-top: 0;
+  align-self: flex-start;
+}
+
+.add-column-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.add-column-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 12px 8px;
+}
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  cursor: grab;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast),
+              opacity var(--transition-slow), background var(--transition-fast),
+              border-color var(--transition-fast);
+  position: relative;
+  user-select: none;
+}
+
+.card:hover {
+  background: var(--bg-card-hover);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+  border-color: var(--glass-border-hover);
+}
+
+.card:active {
+  cursor: grabbing;
+}
+
+.card.dragging {
+  opacity: 0.4;
+  transform: rotate(2deg) scale(0.98);
+  box-shadow: none;
+}
+
+.card.fade-out {
+  opacity: 0;
+  transform: scale(0.95) translateY(-10px);
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+
+.card.hidden-filter {
+  opacity: 0.25;
+  pointer-events: none;
+  transform: scale(0.98);
+}
+
+.card.hidden-filter:hover {
+  opacity: 0.35;
+  transform: translateY(-1px);
+}
+
+/* Done column cards */
+.column-done .card .card-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.column-done .card {
+  background: rgba(30, 33, 48, 0.5);
+  border-color: rgba(255, 255, 255, 0.03);
+}
+
+.column-done .card:hover {
+  background: rgba(30, 33, 48, 0.6);
+}
+
+/* Card header row */
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.card:hover .card-actions {
+  opacity: 1;
+}
+
+.card-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  transition: color var(--transition-fast), background var(--transition-fast);
+  line-height: 1;
+}
+
+.card-delete-btn:hover {
+  color: var(--danger);
+  background: var(--priority-high-bg);
+}
+
+/* Priority badge */
+.priority-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.priority-badge.low {
+  background: var(--priority-low-bg);
+  color: var(--priority-low);
+}
+
+.priority-badge.medium {
+  background: var(--priority-medium-bg);
+  color: var(--priority-medium);
+}
+
+.priority-badge.high {
+  background: var(--priority-high-bg);
+  color: var(--priority-high);
+}
+
+/* Description */
+.card-description {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+  position: relative;
+}
+
+.card-description:hover {
+  color: var(--text-primary);
+}
+
+.card-description.expanded {
+  -webkit-line-clamp: unset;
+}
+
+.card-description .expand-hint {
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  display: inline-block;
+  transition: transform var(--transition-fast);
+}
+
+.card-description.expanded .expand-hint {
+  transform: rotate(180deg);
+}
+
+/* Due date */
+.card-due {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-secondary);
+}
+
+.card-due.overdue {
+  color: var(--danger);
+  background: var(--priority-high-bg);
+}
+
+.card-due svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   ADD CARD BUTTON
+   ============================================================ */
+.add-card-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: calc(100% - 24px);
+  margin: 8px auto;
+  padding: 8px 12px;
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.add-card-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+  background: rgba(99, 102, 241, 0.05);
+}
+
+/* ============================================================
+   INLINE ADD CARD FORM
+   ============================================================ */
+.add-card-form {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin: 4px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: formAppear 200ms ease;
+}
+
+@keyframes formAppear {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 60px;
+  max-height: 150px;
+}
+
+.form-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+}
+
+.form-select option {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.form-row {
+  display: flex;
+  gap: 8px;
+}
+
+.form-row .form-input,
+.form-row .form-select {
+  flex: 1;
+}
+
+.form-input[type="date"] {
+  cursor: pointer;
+}
+
+.form-input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+
+.form-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-save,
+.btn-cancel {
+  padding: 7px 18px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  border: none;
+}
+
+.btn-save {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.btn-save:hover {
+  background: var(--accent-blue-hover);
+}
+
+.btn-cancel {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   STATISTICS BAR
+   ============================================================ */
+.stats-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  background: rgba(15, 17, 23, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  z-index: 100;
+  padding: 0 24px;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.stat-label {
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.stat-value {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-value.overdue {
+  color: var(--danger);
+}
+
+.stat-value.done {
+  color: var(--success);
+}
+
+.stat-value.rate {
+  color: var(--accent-blue);
+}
+
+.stat-divider {
+  width: 1px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+/* ============================================================
+   EMPTY STATE
+   ============================================================ */
+.empty-state {
+  text-align: center;
+  padding: 24px 16px;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .board-header {
+    padding: 16px 16px 12px;
+  }
+
+  .board {
+    padding: 12px 16px 24px;
+    gap: 14px;
+  }
+
+  .column {
+    flex: 0 0 280px;
+    min-width: 260px;
+  }
+
+  .add-column-btn {
+    flex: 0 0 280px;
+    min-width: 260px;
+  }
+
+  .controls {
+    width: 100%;
+  }
+
+  .search-input {
+    width: 100%;
+    flex: 1;
+  }
+
+  .search-wrapper {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .stats-bar {
+    gap: 16px;
+    font-size: 0.75rem;
+    height: 52px;
+  }
+
+  .stat-divider {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  html {
+    font-size: 14px;
+  }
+
+  .board-header {
+    padding: 12px 12px 8px;
+  }
+
+  .board {
+    padding: 10px 12px 20px;
+    gap: 12px;
+  }
+
+  .column {
+    flex: 0 0 260px;
+    min-width: 250px;
+  }
+
+  .stats-bar {
+    gap: 12px;
+    padding: 0 12px;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER
+     ============================================================ -->
+<header class="board-header">
+  <h1 class="board-title">📋 Kanban Board</h1>
+  <div class="controls">
+    <div class="search-wrapper">
+      <span class="search-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </span>
+      <input type="text" class="search-input" id="searchInput" placeholder="Search cards..." autocomplete="off">
+    </div>
+    <select class="filter-select" id="priorityFilter">
+      <option value="all">All Priorities</option>
+      <option value="low">🟢 Low</option>
+      <option value="medium">🟡 Medium</option>
+      <option value="high">🔴 High</option>
+    </select>
+  </div>
+</header>
+
+<!-- ============================================================
+     BOARD
+     ============================================================ -->
+<div class="board" id="board">
+  <!-- Columns rendered by JS -->
+  <button class="add-column-btn" id="addColumnBtn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Column
+  </button>
+</div>
+
+<!-- ============================================================
+     STATISTICS BAR
+     ============================================================ -->
+<div class="stats-bar" id="statsBar">
+  <div class="stat-item">
+    <span class="stat-label">Total</span>
+    <span class="stat-value" id="statTotal">0</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-label">Overdue</span>
+    <span class="stat-value overdue" id="statOverdue">0</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-label">Done</span>
+    <span class="stat-value done" id="statDone">0</span>
+  </div>
+  <div class="stat-divider"></div>
+  <div class="stat-item">
+    <span class="stat-label">Completion</span>
+    <span class="stat-value rate" id="statRate">0%</span>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   SECTION 1: STATE
+   Holds the entire application state and provides mutation helpers.
+   ============================================================ */
+const APP_STORAGE_KEY = 'kanban-board-state';
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+function getTodayString() {
+  return new Date().toISOString().split('T')[0];
+}
+
+function isOverdue(dueDate) {
+  if (!dueDate) return false;
+  return dueDate < getTodayString();
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  const options = { month: 'short', day: 'numeric' };
+  return d.toLocaleDateString('en-US', options);
+}
+
+function createDefaultColumns() {
+  return [
+    {
+      id: generateId(),
+      name: 'Backlog',
+      color: '#6b7280',
+      cards: [
+        {
+          id: generateId(),
+          title: 'Research competitor features',
+          description: 'Analyze top 3 competitors and document their feature sets in a comparison table.',
+          priority: 'low',
+          dueDate: '',
+        },
+        {
+          id: generateId(),
+          title: 'Define project roadmap Q2',
+          description: '',
+          priority: 'medium',
+          dueDate: getTodayString(),
+        },
+      ],
+    },
+    {
+      id: generateId(),
+      name: 'To Do',
+      color: '#6366f1',
+      cards: [
+        {
+          id: generateId(),
+          title: 'Set up CI/CD pipeline',
+          description: 'Configure GitHub Actions for automated testing and deployment to staging.',
+          priority: 'high',
+          dueDate: getTodayString(),
+        },
+        {
+          id: generateId(),
+          title: 'Design onboarding flow',
+          description: 'Create wireframes for the 3-step onboarding experience.',
+          priority: 'medium',
+          dueDate: '',
+        },
+      ],
+    },
+    {
+      id: generateId(),
+      name: 'In Progress',
+      color: '#f59e0b',
+      cards: [
+        {
+          id: generateId(),
+          title: 'Implement authentication',
+          description: 'Build OAuth2 flow with Google and GitHub providers.',
+          priority: 'high',
+          dueDate: getTodayString(),
+        },
+      ],
+    },
+    {
+      id: generateId(),
+      name: 'Done',
+      color: '#22c55e',
+      cards: [
+        {
+          id: generateId(),
+          title: 'Initial project scaffolding',
+          description: 'Set up repo, configure ESLint, Prettier, and commit hooks.',
+          priority: 'low',
+          dueDate: '',
+        },
+      ],
+    },
+  ];
+}
+
+let state = {
+  columns: [],
+  searchQuery: '',
+  priorityFilter: 'all',
+};
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem(APP_STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state.columns = parsed.columns || [];
+      state.searchQuery = parsed.searchQuery || '';
+      state.priorityFilter = parsed.priorityFilter || 'all';
+      if (!state.columns.length) {
+        state.columns = createDefaultColumns();
+      }
+    } else {
+      state.columns = createDefaultColumns();
+    }
+  } catch (e) {
+    console.error('Failed to load state:', e);
+    state.columns = createDefaultColumns();
+  }
+}
+
+function saveState() {
+  try {
+    localStorage.setItem(APP_STORAGE_KEY, JSON.stringify({
+      columns: state.columns,
+      searchQuery: state.searchQuery,
+      priorityFilter: state.priorityFilter,
+    }));
+  } catch (e) {
+    console.error('Failed to save state:', e);
+  }
+}
+
+/* ============================================================
+   SECTION 2: RENDERING
+   DOM generation for columns, cards, and the board.
+   ============================================================ */
+const boardEl = document.getElementById('board');
+const searchInput = document.getElementById('searchInput');
+const priorityFilterEl = document.getElementById('priorityFilter');
+
+function getFilteredCards(column) {
+  const q = state.searchQuery.toLowerCase().trim();
+  const pf = state.priorityFilter;
+
+  return column.cards.filter(card => {
+    const matchesSearch = !q || card.title.toLowerCase().includes(q);
+    const matchesPriority = pf === 'all' || card.priority === pf;
+    return matchesSearch && matchesPriority;
+  });
+}
+
+function getVisibleCards(column) {
+  return column.cards; // Return all; filtering is visual only
+}
+
+function createCardElement(card, columnId) {
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.draggable = true;
+  el.dataset.cardId = card.id;
+  el.dataset.columnId = columnId;
+
+  const isDoneColumn = columnId === 'column-done';
+  const overdue = isOverdue(card.dueDate);
+
+  // Card header
+  const header = document.createElement('div');
+  header.className = 'card-header';
+
+  const title = document.createElement('div');
+  title.className = 'card-title';
+  title.textContent = card.title;
+
+  const actions = document.createElement('div');
+  actions.className = 'card-actions';
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'card-delete-btn';
+  deleteBtn.innerHTML = '✕';
+  deleteBtn.title = 'Delete card';
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteCard(card.id, columnId);
+  });
+
+  actions.appendChild(deleteBtn);
+  header.appendChild(title);
+  header.appendChild(actions);
+  el.appendChild(header);
+
+  // Priority badge
+  if (card.priority) {
+    const badge = document.createElement('span');
+    badge.className = `priority-badge ${card.priority}`;
+    badge.textContent = card.priority;
+    el.appendChild(badge);
+  }
+
+  // Description
+  if (card.description) {
+    const desc = document.createElement('div');
+    desc.className = 'card-description';
+    desc.innerHTML = `${card.description}<br><span class="expand-hint">▼ Expand</span>`;
+    desc.addEventListener('click', () => {
+      desc.classList.toggle('expanded');
+      const hint = desc.querySelector('.expand-hint');
+      hint.textContent = desc.classList.contains('expanded') ? '▲ Collapse' : '▼ Expand';
+    });
+    el.appendChild(desc);
+  }
+
+  // Due date
+  if (card.dueDate) {
+    const due = document.createElement('span');
+    due.className = `card-due ${overdue ? 'overdue' : ''}`;
+    due.innerHTML = overdue
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>⚠️ ${formatDate(card.dueDate)}`
+      : `📅 ${formatDate(card.dueDate)}`;
+    el.appendChild(due);
+  }
+
+  return el;
+}
+
+function createColumnElement(column) {
+  const columnEl = document.createElement('div');
+  columnEl.className = 'column';
+  columnEl.dataset.columnId = column.id;
+
+  // Header wrapper
+  const headerWrapper = document.createElement('div');
+  headerWrapper.className = 'column-header-wrapper';
+
+  // Header content
+  const headerContent = document.createElement('div');
+  headerContent.className = 'column-header';
+
+  const dot = document.createElement('span');
+  dot.className = 'column-dot';
+  dot.style.background = column.color || '#6b7280';
+
+  const nameInput = document.createElement('input');
+  nameInput.className = 'column-name';
+  nameInput.type = 'text';
+  nameInput.value = column.name;
+
+  nameInput.addEventListener('blur', () => {
+    column.name = nameInput.value.trim() || column.name;
+    saveState();
+    renderStats();
+  });
+
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      nameInput.blur();
+    }
+    if (e.key === 'Escape') {
+      nameInput.value = column.name;
+      nameInput.blur();
+    }
+  });
+
+  headerContent.appendChild(dot);
+  headerContent.appendChild(nameInput);
+
+  // Card count
+  const count = document.createElement('span');
+  count.className = 'card-count';
+  count.textContent = column.cards.length;
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'column-actions';
+
+  const deleteColBtn = document.createElement('button');
+  deleteColBtn.className = 'col-action-btn delete-col';
+  deleteColBtn.title = 'Delete column (must be empty)';
+  deleteColBtn.innerHTML = '🗑️';
+  deleteColBtn.addEventListener('click', () => {
+    if (column.cards.length === 0) {
+      deleteColumn(column.id);
+    } else {
+      alert('Cannot delete a non-empty column. Move or delete all cards first.');
+    }
+  });
+
+  actions.appendChild(deleteColBtn);
+  headerWrapper.appendChild(headerContent);
+  headerWrapper.appendChild(count);
+  headerWrapper.appendChild(actions);
+  columnEl.appendChild(headerWrapper);
+
+  // Column body
+  const body = document.createElement('div');
+  body.className = 'column-body';
+  if (column.id === 'done' || column.name === 'Done') {
+    body.classList.add('column-done');
+  }
+
+  // Cards container
+  const cardsContainer = document.createElement('div');
+  cardsContainer.className = 'cards-container';
+  cardsContainer.dataset.columnId = column.id;
+
+  column.cards.forEach(card => {
+    const cardEl = createCardElement(card, column.id);
+    applyFilterVisibility(cardEl, column);
+    cardsContainer.appendChild(cardEl);
+  });
+
+  body.appendChild(cardsContainer);
+
+  // Add card button
+  const addCardBtn = document.createElement('button');
+  addCardBtn.className = 'add-card-btn';
+  addCardBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Add card`;
+  addCardBtn.addEventListener('click', () => {
+    showAddCardForm(column.id, addCardBtn, cardsContainer);
+  });
+  body.appendChild(addCardBtn);
+
+  columnEl.appendChild(body);
+
+  // Rename on double-click
+  headerContent.addEventListener('dblclick', () => {
+    nameInput.focus();
+    nameInput.select();
+  });
+
+  // Drag & Drop events on column body
+  body.addEventListener('dragover', handleDragOver);
+  body.addEventListener('dragleave', handleDragLeave);
+  body.addEventListener('drop', handleDrop);
+
+  return columnEl;
+}
+
+function applyFilterVisibility(cardEl, column) {
+  const cardId = cardEl.dataset.cardId;
+  const card = column.cards.find(c => c.id === cardId);
+  if (!card) return;
+
+  const q = state.searchQuery.toLowerCase().trim();
+  const pf = state.priorityFilter;
+
+  const matchesSearch = !q || card.title.toLowerCase().includes(q);
+  const matchesPriority = pf === 'all' || card.priority === pf;
+
+  if (!matchesSearch || !matchesPriority) {
+    cardEl.classList.add('hidden-filter');
+  } else {
+    cardEl.classList.remove('hidden-filter');
+  }
+}
+
+function renderBoard() {
+  // Clear board except add-column button
+  const addColBtn = document.getElementById('addColumnBtn');
+  boardEl.innerHTML = '';
+  boardEl.appendChild(addColBtn);
+
+  state.columns.forEach(column => {
+    const colEl = createColumnElement(column);
+    boardEl.appendChild(colEl);
+  });
+
+  renderStats();
+}
+
+/* ============================================================
+   SECTION 3: CARD OPERATIONS
+   ============================================================ */
+function showAddCardForm(columnId, btn, cardsContainer) {
+  // Remove any existing form first
+  const existingForm = cardsContainer.querySelector('.add-card-form');
+  if (existingForm) existingForm.remove();
+
+  const form = document.createElement('div');
+  form.className = 'add-card-form';
+  form.innerHTML = `
+    <input type="text" class="form-input" id="formTitle" placeholder="Card title *" autocomplete="off" maxlength="120">
+    <div class="form-row">
+      <select class="form-select" id="formPriority">
+        <option value="low">🟢 Low</option>
+        <option value="medium" selected>🟡 Medium</option>
+        <option value="high">🔴 High</option>
+      </select>
+      <input type="date" class="form-input" id="formDueDate">
+    </div>
+    <textarea class="form-textarea" id="formDescription" placeholder="Description (optional)" rows="2"></textarea>
+    <div class="form-buttons">
+      <button class="btn-cancel" id="formCancel">Cancel</button>
+      <button class="btn-save" id="formSave">Save Card</button>
+    </div>
+  `;
+
+  cardsContainer.insertBefore(form, btn);
+
+  const titleInput = form.querySelector('#formTitle');
+  const prioritySelect = form.querySelector('#formPriority');
+  const dueDateInput = form.querySelector('#formDueDate');
+  const descInput = form.querySelector('#formDescription');
+  const cancelBtn = form.querySelector('#formCancel');
+  const saveBtn = form.querySelector('#formSave');
+
+  titleInput.focus();
+
+  function closeForm() {
+    form.remove();
+  }
+
+  function saveCard() {
+    const title = titleInput.value.trim();
+    if (!title) {
+      titleInput.style.borderColor = 'var(--danger)';
+      titleInput.focus();
+      setTimeout(() => { titleInput.style.borderColor = ''; }, 1500);
+      return;
+    }
+
+    const column = state.columns.find(c => c.id === columnId);
+    if (!column) return;
+
+    const newCard = {
+      id: generateId(),
+      title: title,
+      description: descInput.value.trim(),
+      priority: prioritySelect.value,
+      dueDate: dueDateInput.value || '',
+    };
+
+    column.cards.push(newCard);
+    saveState();
+    closeForm();
+    renderBoard();
+
+    // Re-open form for rapid entry if user wants
+    const newBtn = cardsContainer.querySelector('.add-card-btn');
+    showAddCardForm(columnId, newBtn, cardsContainer);
+    descInput.value = '';
+    dueDateInput.value = '';
+    titleInput.focus();
+  }
+
+  saveBtn.addEventListener('click', saveCard);
+  cancelBtn.addEventListener('click', closeForm);
+
+  // Keyboard shortcuts
+  form.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      closeForm();
+    }
+    if (e.key === 'Enter' && !e.shiftKey) {
+      if (descInput === document.activeElement) {
+        // Shift+Enter for newline, Enter alone saves
+        if (e.ctrlKey || e.metaKey) return; // Let Ctrl+Enter work in textarea
+        saveCard();
+      }
+    }
+  });
+
+  titleInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      saveCard();
+    }
+  });
+}
+
+function deleteCard(cardId, columnId) {
+  const column = state.columns.find(c => c.id === columnId);
+  if (!column) return;
+
+  const cardEl = document.querySelector(`[data-card-id="${cardId}"]`);
+  if (cardEl) {
+    cardEl.classList.add('fade-out');
+    setTimeout(() => {
+      column.cards = column.cards.filter(c => c.id !== cardId);
+      saveState();
+      renderBoard();
+    }, 300);
+  } else {
+    column.cards = column.cards.filter(c => c.id !== cardId);
+    saveState();
+    renderBoard();
+  }
+}
+
+/* ============================================================
+   SECTION 4: COLUMN OPERATIONS
+   ============================================================ */
+function addColumn() {
+  const name = prompt('Enter column name:');
+  if (!name || !name.trim()) return;
+
+  const colors = ['#6366f1', '#f59e0b', '#22c55e', '#ef4444', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316'];
+  const randomColor = colors[Math.floor(Math.random() * colors.length)];
+
+  const newColumn = {
+    id: generateId(),
+    name: name.trim(),
+    color: randomColor,
+    cards: [],
+  };
+
+  state.columns.push(newColumn);
+  saveState();
+  renderBoard();
+
+  // Scroll to the new column
+  setTimeout(() => {
+    const columns = boardEl.querySelectorAll('.column');
+    if (columns.length) {
+      columns[columns.length - 1].scrollIntoView({ behavior: 'smooth', inline: 'end', block: 'nearest' });
+    }
+  }, 100);
+}
+
+function deleteColumn(columnId) {
+  state.columns = state.columns.filter(c => c.id !== columnId);
+  saveState();
+  renderBoard();
+}
+
+/* ============================================================
+   SECTION 5: DRAG & DROP
+   HTML5 native drag and drop.
+   ============================================================ */
+let draggedCardId = null;
+let draggedFromColumnId = null;
+
+function handleDragStart(e) {
+  const cardEl = e.target.closest('.card');
+  if (!cardEl || cardEl.classList.contains('hidden-filter')) {
+    e.preventDefault();
+    return;
+  }
+
+  draggedCardId = cardEl.dataset.cardId;
+  draggedFromColumnId = cardEl.dataset.columnId;
+
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', draggedCardId);
+
+  // Slight delay to show the ghost before hiding the original
+  requestAnimationFrame(() => {
+    cardEl.classList.add('dragging');
+  });
+}
+
+function handleDragEnd(e) {
+  const cardEl = e.target.closest('.card');
+  if (cardEl) {
+    cardEl.classList.remove('dragging');
+  }
+
+  // Clear all drop zone indicators
+  document.querySelectorAll('.column-body').forEach(el => {
+    el.classList.remove('drag-over');
+    el.classList.remove('drop-above');
+    el.classList.remove('drop-below');
+  });
+
+  draggedCardId = null;
+  draggedFromColumnId = null;
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+
+  const body = e.currentTarget;
+  body.classList.add('drag-over');
+
+  // Remove previous indicators
+  document.querySelectorAll('.column-body').forEach(el => {
+    if (el !== body) {
+      el.classList.remove('drop-above');
+      el.classList.remove('drop-below');
+    }
+  });
+
+  // Determine insert position based on mouse Y
+  const cardsContainer = body.querySelector('.cards-container');
+  if (!cardsContainer) return;
+
+  const cards = [...cardsContainer.querySelectorAll('.card:not(.dragging):not(.hidden-filter)')];
+  const afterElement = getDragAfterElement(cardsContainer, e.clientY);
+
+  cards.forEach(card => {
+    card.classList.remove('drop-above', 'drop-below');
+  });
+
+  if (afterElement) {
+    afterElement.classList.add('drop-above');
+  }
+}
+
+function handleDragLeave(e) {
+  const body = e.currentTarget;
+  // Only remove if actually leaving the column body
+  if (!body.contains(e.relatedTarget)) {
+    body.classList.remove('drag-over');
+    body.querySelectorAll('.card').forEach(c => {
+      c.classList.remove('drop-above', 'drop-below');
+    });
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const body = e.currentTarget;
+  body.classList.remove('drag-over');
+
+  if (!draggedCardId || !draggedFromColumnId) return;
+
+  const targetColumnId = body.closest('.column')?.dataset.columnId;
+  if (!targetColumnId) return;
+
+  const cardsContainer = body.querySelector('.cards-container');
+  const afterElement = getDragAfterElement(cardsContainer, e.clientY);
+
+  // Find source and target columns
+  const sourceColumn = state.columns.find(c => c.id === draggedFromColumnId);
+  const targetColumn = state.columns.find(c => c.id === targetColumnId);
+
+  if (!sourceColumn || !targetColumn) return;
+
+  // Remove card from source
+  const cardIndex = sourceColumn.cards.findIndex(c => c.id === draggedCardId);
+  if (cardIndex === -1) return;
+
+  const [card] = sourceColumn.cards.splice(cardIndex, 1);
+
+  // Insert at position
+  if (targetColumnId === draggedFromColumnId) {
+    // Same column, insert at new position
+    let insertIndex;
+    if (afterElement) {
+      const afterCardId = afterElement.dataset.cardId;
+      insertIndex = targetColumn.cards.findIndex(c => c.id === afterCardId);
+      if (insertIndex === -1) insertIndex = targetColumn.cards.length;
+    } else {
+      insertIndex = targetColumn.cards.length;
+    }
+    targetColumn.cards.splice(insertIndex, 0, card);
+  } else {
+    // Different column
+    if (afterElement) {
+      const afterCardId = afterElement.dataset.cardId;
+      const insertIndex = targetColumn.cards.findIndex(c => c.id === afterCardId);
+      if (insertIndex === -1) {
+        targetColumn.cards.push(card);
+      } else {
+        targetColumn.cards.splice(insertIndex, 0, card);
+      }
+    } else {
+      targetColumn.cards.push(card);
+    }
+  }
+
+  // Reset drag variables
+  draggedCardId = null;
+  draggedFromColumnId = null;
+
+  // Clear all visual indicators
+  document.querySelectorAll('.column-body').forEach(el => {
+    el.classList.remove('drag-over', 'drop-above', 'drop-below');
+  });
+  document.querySelectorAll('.card').forEach(c => {
+    c.classList.remove('drop-above', 'drop-below');
+  });
+
+  saveState();
+  renderBoard();
+}
+
+function getDragAfterElement(container, y) {
+  if (!container) return null;
+
+  const cards = [...container.querySelectorAll('.card:not(.dragging):not(.hidden-filter)')];
+
+  let closest = null;
+  let closestOffset = Number.NEGATIVE_INFINITY;
+
+  cards.forEach(card => {
+    const box = card.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+
+    if (offset < 0 && offset > closestOffset) {
+      closestOffset = offset;
+      closest = card;
+    }
+  });
+
+  return closest;
+}
+
+/* ============================================================
+   SECTION 6: FILTERING & SEARCH
+   ============================================================ */
+function applyFilters() {
+  state.searchQuery = searchInput.value;
+  state.priorityFilter = priorityFilterEl.value;
+
+  saveState();
+
+  // Re-apply filter visibility to all cards
+  state.columns.forEach(column => {
+    column.cards.forEach(card => {
+      const cardEl = document.querySelector(`.card[data-card-id="${card.id}"][data-column-id="${column.id}"]`);
+      if (cardEl) {
+        applyFilterVisibility(cardEl, column);
+      }
+    });
+  });
+
+  renderStats();
+}
+
+/* ============================================================
+   SECTION 7: STATISTICS
+   ============================================================ */
+function renderStats() {
+  const totalCards = state.columns.reduce((sum, col) => sum + col.cards.length, 0);
+  const overdueCards = state.columns.reduce((sum, col) =>
+    sum + col.cards.filter(c => isOverdue(c.dueDate)).length, 0);
+  const doneColumn = state.columns.find(c => c.name === 'Done' || c.id === 'column-done');
+  const doneCount = doneColumn ? doneColumn.cards.length : 0;
+  const rate = totalCards > 0 ? Math.round((doneCount / totalCards) * 100) : 0;
+
+  document.getElementById('statTotal').textContent = totalCards;
+  document.getElementById('statOverdue').textContent = overdueCards;
+  document.getElementById('statDone').textContent = doneCount;
+  document.getElementById('statRate').textContent = rate + '%';
+}
+
+/* ============================================================
+   SECTION 8: INITIALIZATION
+   ============================================================ */
+function init() {
+  loadState();
+
+  // Restore search & filter from state
+  searchInput.value = state.searchQuery;
+  priorityFilterEl.value = state.priorityFilter;
+
+  // Render the board
+  renderBoard();
+
+  // Add column button
+  document.getElementById('addColumnBtn').addEventListener('click', addColumn);
+
+  // Search & filter
+  searchInput.addEventListener('input', applyFilters);
+  priorityFilterEl.addEventListener('change', applyFilters);
+
+  // Global drag events
+  document.addEventListener('dragstart', handleDragStart);
+  document.addEventListener('dragend', handleDragEnd);
+
+  // Keyboard shortcut: Ctrl+K to focus search
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+      e.preventDefault();
+      searchInput.focus();
+      searchInput.select();
+    }
+  });
+}
+
+// Start the app
+init();
+</script>
+</body>
+</html>
+

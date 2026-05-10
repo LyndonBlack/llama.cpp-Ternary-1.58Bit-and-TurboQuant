@@ -124,7 +124,8 @@ if (CUDAToolkit_FOUND)
             template-instances/fattn-vec-instance-f16-turbo2_0.cu
             template-instances/fattn-vec-instance-f16-turbo3_0.cu
             template-instances/fattn-vec-instance-f16-turbo4_0.cu
-            template-instances/fattn-vec-instance-turbo4_0-turbo3_0.cu)
+            template-instances/fattn-vec-instance-turbo4_0-turbo3_0.cu
+            template-instances/fattn-vec-instance-turbo6_0-turbo3_0.cu)
     endif()
 
     ggml_add_backend_library(ggml-cuda

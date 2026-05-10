@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sorting Visualization</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #controls {
+      margin-bottom: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button, input[type="range"], input[type="number"] {
+      background-color: #2d2d2d;
+      color: #ffffff;
+      border: none;
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button {
+      background-color: #4caf50;
+      color: #000000;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    #stats {
+      margin-bottom: 20px;
+      background-color: #2d2d2d;
+      padding: 10px;
+      border-radius: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #array {
+      display: flex;
+      gap: 5px;
+      margin-bottom: 20px;
+    }
+
+    .bar {
+      width: 40px;
+      height: 100px;
+      background-color: #666666;
+      border-radius: 5px;
+      transition: background-color 0.3s ease;
+    }
+
+    .bar.highlight {
+      background-color: #ff9800;
+    }
+
+    .bar.sorted {
+      background-color: #43a047;
+    }
+
+    canvas {
+      background-color: #1e1e1e;
+      border: 2px solid #4caf50;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+
+    label {
+      font-size: 14px;
+      margin-right: 5px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Sorting Visualization</h1>
+  <div id="controls">
+    <button onclick="selectAlgorithm('bubble')">Bubble Sort</button>
+    <button onclick="selectAlgorithm('insertion')">Insertion Sort</button>
+    <button onclick="selectAlgorithm('selection')">Selection Sort</button>
+    <button onclick="selectAlgorithm('merge')">Merge Sort</button>
+    <button onclick="selectAlgorithm('quick')">Quick Sort</button>
+    <button onclick="selectAlgorithm('heap')">Heap Sort</button>
+    <input type="range" id="speedSlider" min="1" max="100" value="50" oninput="updateSpeed()">
+    <input type="number" id="sizeSlider" min="10" max="200" value="50" oninput="updateSize()">
+    <button onclick="shuffleArray()">Shuffle & Reset</button>
+    <button onclick="startSort()">Start / Pause</button>
+  </div>
+  <div id="stats">
+    <span id="algorithmName">-- Algorithm --</span>
+    <span id="comparisons">0</span> comparisons
+    <span id="swaps">0</span> swaps
+    <span id="time">-- Time --</span> seconds
+  </div>
+  <div id="array"></div>
+  <canvas id="visualization" width="800" height="200"></canvas>
+
+  <script>
+    let array = [];
+    let isSorting = false;
+    let algorithm = 'bubble';
+    let speed = 50;
+    let size = 50;
+    let startTime = 0;
+    const visualization = document.getElementById('visualization');
+    const arrayDiv = document.getElementById('array');
+    const stats = document.getElementById('stats');
+    const algorithmName = document.getElementById('algorithmName');
+    const comparisons = document.getElementById('comparisons');
+    const swaps = document.getElementById('swaps');
+    const time = document.getElementById('time');
+
+    function updateSpeed() {
+      speed = document.getElementById('speedSlider').value;
+    }
+
+    function updateSize() {
+      size = document.getElementById('sizeSlider').value;
+      array = Array(size).fill(0).map(() => Math.floor(Math.random() * 100));
+      renderArray();
+    }
+
+    function shuffleArray() {
+      array = Array(size).fill(0).map(() => Math.floor(Math.random() * 100));
+      renderArray();
+      isSorting = false;
+    }
+
+    function startSort() {
+      if (isSorting) {
+        isSorting = false;
+        document.getElementById('startPauseBtn').textContent = 'Start';
+      } else {
+        isSorting = true;
+        document.getElementById('startPauseBtn').textContent = 'Pause';
+      }
+      if (!isSorting) {
+        selectAlgorithm('bubble');
+        renderArray();
+      }
+    }
+
+    function selectAlgorithm(algo) {
+      algorithm = algo;
+      isSorting = false;
+      renderArray();
+    }
+
+    function renderArray() {
+      arrayDiv.innerHTML = '';
+      array.forEach((value, index) => {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = `${value}px`;
+        bar.style.left = `${index * 45}px`;
+        bar.style.background = '#666666';
+        if (value === 0) bar.classList.add('highlight');
+        if (value === 100) bar.classList.add('sorted');
+        arrayDiv.appendChild(bar);
+      });
+    }
+
+    function updateStats() {
+      if (isSorting) {
+        const now = Date.now();
+        const elapsed = now - startTime;
+        time.textContent = elapsed / 1000.toFixed(2) + ' s';
+        comparisons.textContent = document.getElementById('comparisons').textContent;
+        swaps.textContent = document.getElementById('swaps').textContent;
+      }
+    }
+
+    function bubbleSort() {
+      let swaps = 0;
+      let comparisons = 0;
+      let swapped;
+      do {
+        swapped = false;
+        for (let i = 0; i < array.length - 1; i++) {
+          comparisons++;
+          if (array[i] > array[i + 1]) {
+            [array[i], array[i + 1]] = [array[i + 1], array[i]];
+            swaps++;
+            renderArray();
+            updateStats();
+          }
+        }
+      } while (swapped);
+    }
+
+    function insertionSort() {
+      let comparisons = 0;
+      let swaps = 0;
+      for (let i = 1; i < array.length; i++) {
+        let key = array[i];
+        let j = i - 1;
+        while (j >= 0 && array[j] > key) {
+          comparisons++;
+          array[j + 1] = array[j];
+          swaps++;
+          j--;
+        }
+        array[j + 1] = key;
+        renderArray();
+        updateStats();
+      }
+    }
+
+    function selectionSort() {
+      let comparisons = 0;
+      let swaps = 0;
+      for (let i = 0; i < array.length - 1; i++) {
+        let minIndex = i;
+        for (let j = i + 1; j < array.length; j++) {
+          comparisons++;
+          if (array[j] < array[minIndex]) {
+            minIndex = j;
+          }
+        }
+        if (minIndex !== i) {
+          [array[i], array[minIndex]] = [array[minIndex], array[i]];
+          swaps++;
+          renderArray();
+          updateStats();
+        }
+      }
+    }
+
+    function mergeSort() {
+      if (array.length <= 1) return array;
+      const mid = Math.floor(array.length / 2);
+      const left = mergeSort(array.slice(0, mid));
+      const right = mergeSort(array.slice(mid));
+      return merge(left, right);
+    }
+
+    function merge(left, right) {
+      let result = [];
+      let i = 0;
+      let j = 0;
+      let comparisons = 0;
+      while (i < left.length && j < right.length) {
+        comparisons++;
+        if (left[i] < right[j]) {
+          result.push(left[i]);
+          i++;
+        } else {
+          result.push(right[j]);
+          j++;
+        }
+      }
+      return result.concat(left.slice(i)).concat(right.slice(j));
+    }
+
+    function quickSort(arr, low, high) {
+      if (low < high) {
+        const pi = partition(arr, low, high);
+        quickSort(arr, low, pi - 1);
+        quickSort(arr, pi + 1, high);
+      }
+    }
+
+    function partition(arr, low, high) {
+      let pivot = arr[high];
+      let i = low - 1;
+      for (let j = low; j < high; j++) {
+        if (arr[j] < pivot) {
+          i++;
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+          comparisons++;
+          swaps++;
+          renderArray();
+          updateStats();
+        }
+      }
+      [arr[i + 1], arr[high]] = [arr[high], arr[i + 1]];
+      comparisons++;
+      swaps++;
+      renderArray();
+      updateStats();
+      return i + 1;
+    }
+
+    function heapSort() {
+      let n = array.length;
+      for (let i = Math.floor(n / 2) - 1; i >= 0; i--) {
+        heapify(array, n, i);
+      }
+      for (let i = n - 1; i > 0; i--) {
+        [array[0], array[i]] = [array[i], array[0]];
+        heapify(array, i, 0);
+        renderArray();
+        updateStats();
+      }
+    }
+
+    function heapify(arr, n, i) {
+      let largest = i;
+      let left = 2 * i + 1;
+      let right = 2 * i + 2;
+      if (left < n && arr[left] > arr[largest]) {
+        largest = left;
+      }
+      if (right < n && arr[right] > arr[largest]) {
+        largest = right;
+      }
+      if (largest !== i) {
+        [arr[i], arr[largest]] = [arr[largest], arr[i]];
+        heapify(arr, largest, i);
+        renderArray();
+        updateStats();
+      }
+    }
+
+    function runAlgorithm() {
+      if (isSorting) return;
+      const now = Date.now();
+      startTime = now;
+      const duration = 1000 / speed;
+      const steps = Math.ceil(array.length / 10);
+      let step = 0;
+      const interval = setInterval(() => {
+        step++;
+        if (step === steps) {
+          clearInterval(interval);
+          isSorting = false;
+          document.getElementById('startPauseBtn').textContent = 'Start';
+        }
+        if (step === steps) {
+          return;
+        }
+        switch (algorithm) {
+          case 'bubble':
+            bubbleSort();
+            break;
+          case 'insertion':
+            insertionSort();
+            break;
+          case 'selection':
+            selectionSort();
+            break;
+          case 'merge':
+            mergeSort(array);
+            break;
+          case 'quick':
+            quickSort(array, 0, array.length - 1);
+            break;
+          case 'heap':
+            heapSort();
+            break;
+        }
+      }, duration);
+    }
+
+    function runAlgorithmOnStart() {
+      if (!isSorting) {
+        isSorting = true;
+        document.getElementById('startPauseBtn').textContent = 'Pause';
+      }
+      runAlgorithm();
+    }
+
+    document.getElementById('startPauseBtn').addEventListener('click', () => {
+      if (isSorting) {
+        isSorting = false;
+        document.getElementById('startPauseBtn').textContent = 'Start';
+      } else {
+        isSorting = true;
+        document.getElementById('startPauseBtn').textContent = 'Pause';
+      }
+    });
+
+    document.getElementById('speedSlider').addEventListener('input', updateSpeed);
+    document.getElementById('sizeSlider').addEventListener('input', updateSize);
+
+    function runAlgorithmOnStart() {
+      if (!isSorting) {
+        isSorting = true;
+        document.getElementById('startPauseBtn').textContent = 'Pause';
+      }
+      runAlgorithm();
+    }
+
+    document.getElementById('startPauseBtn').addEventListener('click', runAlgorithmOnStart);
+
+    function shuffleArray() {
+      array = Array(size).fill(0).map(() => Math.floor(Math.random() * 100));
+      renderArray();
+      isSorting = false;
+    }
+
+    function startSort() {
+      if (!isSorting) {
+        isSorting = true;
+        document.getElementById('startPauseBtn').textContent = 'Pause';
+      }
+      runAlgorithm();
+    }
+
+    function selectAlgorithm(algo) {
+      algorithm = algo;
+      isSorting = false;
+      renderArray();
+    }
+
+    // Initialize sample data
+    array = Array(size).fill(0).map(() => Math.floor(Math.random() * 100));
+    renderArray();
+  </script>
+</body>
+</html>
+

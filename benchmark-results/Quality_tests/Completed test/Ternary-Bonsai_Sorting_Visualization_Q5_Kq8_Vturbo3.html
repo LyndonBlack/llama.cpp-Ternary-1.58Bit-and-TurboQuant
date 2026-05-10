@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Sorting Algorithm Visualizer</title>
+  <style>
+    body {
+      background-color: #121212;
+      color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 2em;
+    }
+
+    #controls {
+      display: flex;
+      flex-direction: row;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-size: 1em;
+    }
+
+    input[type="range"] {
+      width: 200px;
+    }
+
+    button {
+      padding: 10px 20px;
+      font-size: 1em;
+      margin: 5px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #222222;
+    }
+
+    #array {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .bar {
+      width: 30px;
+      height: 100px;
+      background-color: #444444;
+      border-radius: 5px;
+      transition: all 0.2s ease;
+    }
+
+    .bar.highlight {
+      background-color: #50ff50;
+      border: 2px solid #00ff00;
+    }
+
+    .bar.sort {
+      background-color: #0055ff;
+      border: 2px solid #0000ff;
+    }
+
+    #stats {
+      background-color: #222222;
+      padding: 15px;
+      border-radius: 8px;
+      max-width: 300px;
+      width: 100%;
+      text-align: center;
+      color: #00ff00;
+    }
+
+    #stats h2 {
+      margin-bottom: 10px;
+    }
+
+    #stats p {
+      margin: 5px 0;
+    }
+
+    .controls-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .controls-row label {
+      font-size: 0.9em;
+    }
+
+    .controls-row input[type="range"] {
+      width: 150px;
+    }
+
+    .controls-row button {
+      background-color: #0055ff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 15px;
+    }
+
+    .controls-row button:hover {
+      background-color: #00aaff;
+    }
+
+    #info {
+      font-size: 0.9em;
+      color: #cccccc;
+      margin-bottom: 10px;
+    }
+
+    #info p {
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Sorting Algorithm Visualizer</h1>
+
+  <div id="info">
+    <p>Click an algorithm to start sorting</p>
+  </div>
+
+  <div id="controls">
+    <div class="controls-row">
+      <label for="algorithm">Algorithm:</label>
+      <button id="algorithm">Bubble Sort</button>
+    </div>
+    <div class="controls-row">
+      <label for="speed">Speed:</label>
+      <input type="range" id="speed" min="1" max="100" value="50">
+    </div>
+    <div class="controls-row">
+      <label for="size">Size:</label>
+      <input type="range" id="size" min="10" max="200" value="50">
+    </div>
+    <div class="controls-row">
+      <button id="shuffle">Shuffle & Reset</button>
+    </div>
+    <div class="controls-row">
+      <button id="startPause">Start / Pause</button>
+    </div>
+  </div>
+
+  <div id="array"></div>
+
+  <div id="stats">
+    <h2>Stats</h2>
+    <p>Algorithm: <span id="algorithmName">Bubble Sort</span></p>
+    <p>Comparisons: <span id="comparisons">0</span></p>
+    <p>Swaps: <span id="swaps">0</span></p>
+    <p>Time: <span id="time">0s</span></p>
+  </div>
+
+  <script>
+    const array = [];
+    let isPaused = false;
+    let currentAlgorithm = 'Bubble Sort';
+    let speed = 50;
+    let size = 50;
+
+    const arrayEl = document.getElementById('array');
+    const algorithmNameEl = document.getElementById('algorithmName');
+    const comparisonsEl = document.getElementById('comparisons');
+    const swapsEl = document.getElementById('swaps');
+    const timeEl = document.getElementById('time');
+
+    function createBars() {
+      arrayEl.innerHTML = '';
+      for (let i = 0; i < size; i++) {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = `${100 * (array[i] / Math.max(...array))}px`;
+        bar.dataset.index = i;
+        arrayEl.appendChild(bar);
+      }
+    }
+
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+    }
+
+    function updateStats() {
+      const name = currentAlgorithm;
+      const comparisons = document.getElementById('comparisons').textContent;
+      const swaps = document.getElementById('swaps').textContent;
+      const time = document.getElementById('time').textContent;
+      algorithmNameEl.textContent = name;
+      comparisonsEl.textContent = comparisons;
+      swapsEl.textContent = swaps;
+      timeEl.textContent = time;
+    }
+
+    function startSorting() {
+      const startTime = performance.now();
+      let steps = 0;
+      let swaps = 0;
+      let comparisons = 0;
+
+      const barElements = Array.from(document.querySelectorAll('.bar'));
+      const barColors = ['#444444', '#50ff50', '#0055ff'];
+
+      function animateStep() {
+        if (isPaused) return;
+
+        steps++;
+        comparisons += 1;
+        swaps += 1;
+
+        const bar = barElements[steps % array.length];
+        bar.classList.add('highlight');
+
+        if (steps % 2 === 0) {
+          // Even steps: compare and swap
+          const i = steps % array.length;
+          const j = (i + 1) % array.length;
+          const valI = array[i];
+          const valJ = array[j];
+
+          bar.style.backgroundColor = barColors[0]; // default color
+
+          if (valI > valJ) {
+            bar.classList.remove('highlight');
+            bar.style.backgroundColor = barColors[1]; // compare
+            bar.style.borderLeft = '2px solid #00ff00';
+            bar.style.borderRight = '2px solid #00ff00';
+
+            // Swap
+            [array[i], array[j]] = [array[j], array[i]];
+            bar.style.backgroundColor = barColors[2]; // sorted
+            bar.style.borderLeft = '2px solid #0000ff';
+            bar.style.borderRight = '2px solid #0000ff';
+            bar.style.borderTop = '2px solid #00ff00';
+            bar.style.borderBottom = '2px solid #00ff00';
+          } else {
+            bar.style.backgroundColor = barColors[2]; // sorted
+            bar.style.borderLeft = '2px solid #0000ff';
+            bar.style.borderRight = '2px solid #0000ff';
+            bar.style.borderTop = '2px solid #00ff00';
+            bar.style.borderBottom = '2px solid #00ff00';
+          }
+
+          updateStats();
+
+          if (steps < array.length * (array.length - 1)) {
+            requestAnimationFrame(animateStep);
+          } else {
+            isPaused = true;
+            document.getElementById('startPause').textContent = 'Pause';
+            updateStats();
+          }
+        }
+      }
+
+      requestAnimationFrame(animateStep);
+    }
+
+    function pauseSorting() {
+      isPaused = true;
+      document.getElementById('startPause').textContent = 'Start';
+    }
+
+    function resetSorting() {
+      pauseSorting();
+      shuffleArray(array);
+      createBars();
+      updateStats();
+    }
+
+    function startAlgorithm() {
+      if (array.length === 0) return;
+
+      const startTime = performance.now();
+      let steps = 0;
+      let swaps = 0;
+      let comparisons = 0;
+
+      const barElements = Array.from(document.querySelectorAll('.bar'));
+      const barColors = ['#444444', '#50ff50', '#0055ff'];
+
+      function animateStep() {
+        if (isPaused) return;
+
+        steps++;
+        comparisons += 1;
+        swaps += 1;
+
+        const bar = barElements[steps % array.length];
+        bar.classList.add('highlight');
+
+        if (steps % 2 === 0) {
+          const i = steps % array.length;
+          const j = (i + 1) % array.length;
+          const valI = array[i];
+          const valJ = array[j];
+
+          bar.style.backgroundColor = barColors[0]; // default color
+
+          if (valI > valJ) {
+            bar.classList.remove('highlight');
+            bar.style.backgroundColor = barColors[1]; // compare
+            bar.style.borderLeft = '2px solid #00ff00';
+            bar.style.borderRight = '2px solid #00ff00';
+
+            [array[i], array[j]] = [array[j], array[i]];
+            bar.style.backgroundColor = barColors[2]; // sorted
+            bar.style.borderLeft = '2px solid #0000ff';
+            bar.style.borderRight = '2px solid #0000ff';
+            bar.style.borderTop = '2px solid #00ff00';
+            bar.style.borderBottom = '2px solid #00ff00';
+          } else {
+            bar.style.backgroundColor = barColors[2]; // sorted
+            bar.style.borderLeft = '2px solid #0000ff';
+            bar.style.borderRight = '2px solid #0000ff';
+            bar.style.borderTop = '2px solid #00ff00';
+            bar.style.borderBottom = '2px solid #00ff00';
+          }
+
+          updateStats();
+
+          if (steps < array.length * (array.length - 1)) {
+            requestAnimationFrame(animateStep);
+          } else {
+            isPaused = true;
+            document.getElementById('startPause').textContent = 'Pause';
+            updateStats();
+          }
+        }
+      }
+
+      requestAnimationFrame(animateStep);
+    }
+
+    function bubbleSort() {
+      startSorting();
+    }
+
+    function insertionSort() {
+      startSorting();
+    }
+
+    function selectionSort() {
+      startSorting();
+    }
+
+    function mergeSort() {
+      startSorting();
+    }
+
+    function quickSort() {
+      startSorting();
+    }
+
+    function heapSort() {
+      startSorting();
+    }
+
+    document.getElementById('algorithm').addEventListener('click', () => {
+      const name = document.getElementById('algorithm').textContent;
+      currentAlgorithm = name;
+
+      if (name === 'Bubble Sort') bubbleSort();
+      else if (name === 'Insertion Sort') insertionSort();
+      else if (name === 'Selection Sort') selectionSort();
+      else if (name === 'Merge Sort') mergeSort();
+      else if (name === 'Quick Sort') quickSort();
+      else if (name === 'Heap Sort') heapSort();
+
+      updateStats();
+    });
+
+    document.getElementById('shuffle').addEventListener('click', resetSorting);
+
+    document.getElementById('startPause').addEventListener('click', () => {
+      if (isPaused) {
+        startSorting();
+        document.getElementById('startPause').textContent = 'Pause';
+      } else {
+        pauseSorting();
+        document.getElementById('startPause').textContent = 'Start';
+      }
+    });
+
+    document.getElementById('size').addEventListener('input', () => {
+      size = parseInt(document.getElementById('size').value);
+      createBars();
+    });
+
+    document.getElementById('speed').addEventListener('input', () => {
+      speed = parseInt(document.getElementById('speed').value);
+    });
+
+    // Initialize
+    createBars();
+  </script>
+
+</body>
+</html>
+

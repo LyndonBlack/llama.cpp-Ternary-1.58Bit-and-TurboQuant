@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bubble Sort Visualizer</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      height: 100vh;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    #controls {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    #controls button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #2c3e50;
+      color: #ffffff;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    #controls button:hover {
+      background-color: #3498db;
+    }
+
+    #controls input[type="range"] {
+      width: 200px;
+    }
+
+    #stats {
+      margin-bottom: 20px;
+      font-size: 18px;
+    }
+
+    #array {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .bar {
+      width: 40px;
+      height: 0;
+      background-color: #2c3e50;
+      border-radius: 5px;
+      transition: height 0.3s ease;
+    }
+
+    .bar.highlight {
+      background-color: #e74c3c;
+    }
+
+    .bar.sorted {
+      background-color: #27ae60;
+    }
+
+    #info {
+      font-size: 16px;
+      margin-top: 10px;
+    }
+
+    .info {
+      color: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <h1>Bubble Sort Visualizer</h1>
+
+  <div id="controls">
+    <button id="startSort">Start Sort</button>
+    <button id="reset">Reset</button>
+    <input type="range" id="speedSlider" min="100" max="1000" value="500">
+    <div id="stats">
+      <span id="comparisonCounter">Comparisons: 0</span>
+    </div>
+  </div>
+
+  <div id="array"></div>
+  <div id="info">
+    <span class="info">Click "Start Sort" to begin the animation.</span>
+  </div>
+
+  <script>
+    // Initialize array with random numbers
+    let array = [];
+    const size = 20;
+
+    // Generate a random array
+    function generateRandomArray() {
+      array = [];
+      for (let i = 0; i < size; i++) {
+        array.push(Math.floor(Math.random() * 100));
+      }
+      updateBars();
+    }
+
+    // Update the visual bars based on the array
+    function updateBars() {
+      const arrayDiv = document.getElementById('array');
+      arrayDiv.innerHTML = '';
+      array.forEach((value, index) => {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = value + 'px';
+        bar.style.backgroundColor = '#2c3e50';
+        arrayDiv.appendChild(bar);
+      });
+    }
+
+    // Start the bubble sort animation
+    function startSort() {
+      if (array.length === 0) return;
+      const speedSlider = document.getElementById('speedSlider');
+      const delay = speedSlider.value;
+      let comparisons = 0;
+      const n = array.length;
+
+      // Function to perform bubble sort step-by-step
+      function bubbleSortStep() {
+        comparisons++;
+        for (let i = 0; i < n - 1; i++) {
+          for (let j = 0; j < n - 1 - i; j++) {
+            if (array[j] > array[j + 1]) {
+              // Swap the elements
+              [array[j], array[j + 1]] = [array[j + 1], array[j]];
+
+              // Highlight the two bars being compared
+              const bar1 = document.querySelector('.bar');
+              const bar2 = document.querySelector('.bar');
+              bar1.classList.add('highlight');
+              bar2.classList.add('highlight');
+
+              // Wait for the animation to complete before moving to the next step
+              setTimeout(() => {
+                bar1.classList.remove('highlight');
+                bar2.classList.remove('highlight');
+              }, 300);
+            }
+          }
+        }
+
+        // If the array is sorted, stop the animation
+        if (array.every((val, index) => index === 0 || val <= array[index - 1])) {
+          document.getElementById('info').textContent = 'Array is sorted!';
+          return;
+        }
+
+        // Otherwise, continue the next step
+        setTimeout(bubbleSortStep, delay);
+      }
+
+      // Begin the animation
+      bubbleSortStep();
+    }
+
+    // Reset the array and stop any ongoing animation
+    function reset() {
+      generateRandomArray();
+      document.getElementById('info').textContent = 'Click "Start Sort" to begin the animation.';
+    }
+
+    // Start the sort on button click
+    document.getElementById('startSort').addEventListener('click', startSort);
+
+    // Reset the array on button click
+    document.getElementById('reset').addEventListener('click', reset);
+
+    // Optional: Add event listener for speed slider change
+    document.getElementById('speedSlider').addEventListener('input', (e) => {
+      document.getElementById('info').textContent = 'Speed: ' + e.target.value + 'ms';
+    });
+
+    // Initialize the array
+    generateRandomArray();
+  </script>
+</body>
+</html>
+

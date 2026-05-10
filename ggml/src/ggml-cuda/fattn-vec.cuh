@@ -75,8 +75,8 @@ static __global__ void flash_attn_ext_vec(
 #endif // GGML_USE_HIP
 
     constexpr int nthreads    = ggml_cuda_fattn_vec_get_nthreads_device();
-    constexpr bool K_is_turbo = type_K == GGML_TYPE_TURBO2_0 || type_K == GGML_TYPE_TURBO3_0 || type_K == GGML_TYPE_TURBO4_0;
-    constexpr bool V_is_turbo = type_V == GGML_TYPE_TURBO2_0 || type_V == GGML_TYPE_TURBO3_0 || type_V == GGML_TYPE_TURBO4_0;
+    constexpr bool K_is_turbo = type_K == GGML_TYPE_TURBO2_0 || type_K == GGML_TYPE_TURBO3_0 || type_K == GGML_TYPE_TURBO4_0 || type_K == GGML_TYPE_TURBO6_0;
+    constexpr bool V_is_turbo = type_V == GGML_TYPE_TURBO2_0 || type_V == GGML_TYPE_TURBO3_0 || type_V == GGML_TYPE_TURBO4_0 || type_V == GGML_TYPE_TURBO6_0;
     constexpr bool K_uses_float_Q = type_K == GGML_TYPE_F16 || type_K == GGML_TYPE_BF16 || K_is_turbo;
     constexpr int nthreads_KQ = K_is_turbo ? 2 : (K_uses_float_Q ? 128 / cpy_nb : nthreads_KQ_q);
     constexpr int nthreads_V  = V_is_turbo ? (nthreads_V_q / 8 < 1 ? 1 : nthreads_V_q / 8) : ((type_V == GGML_TYPE_F16 || type_V == GGML_TYPE_BF16) ? 128 / cpy_nb : nthreads_V_q);
@@ -661,3 +661,6 @@ extern DECL_FATTN_VEC_CASE(256, GGML_TYPE_F16, GGML_TYPE_TURBO4_0);
 extern DECL_FATTN_VEC_CASE( 64, GGML_TYPE_TURBO4_0, GGML_TYPE_TURBO3_0);
 extern DECL_FATTN_VEC_CASE(128, GGML_TYPE_TURBO4_0, GGML_TYPE_TURBO3_0);
 extern DECL_FATTN_VEC_CASE(256, GGML_TYPE_TURBO4_0, GGML_TYPE_TURBO3_0);
+extern DECL_FATTN_VEC_CASE( 64, GGML_TYPE_TURBO6_0, GGML_TYPE_TURBO3_0);
+extern DECL_FATTN_VEC_CASE(128, GGML_TYPE_TURBO6_0, GGML_TYPE_TURBO3_0);
+extern DECL_FATTN_VEC_CASE(256, GGML_TYPE_TURBO6_0, GGML_TYPE_TURBO3_0);

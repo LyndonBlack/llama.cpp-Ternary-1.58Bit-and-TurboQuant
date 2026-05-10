@@ -128,6 +128,14 @@ static __device__ __forceinline__ void dequantize_turbo4_0(const void * vx, cons
     v.y = turbo4_dequant_element(&x[ib], iqs + 1, norm);
 }
 
+// Turbo6: 6-bit PolarQuant, block size 128.
+static __device__ __forceinline__ void dequantize_turbo6_0(const void * vx, const int64_t ib, const int iqs, float2 & v){
+    const block_turbo6_0 * x = (const block_turbo6_0 *) vx;
+    const float norm = __half2float(x[ib].norm);
+    v.x = turbo6_dequant_element(&x[ib], iqs + 0, norm);
+    v.y = turbo6_dequant_element(&x[ib], iqs + 1, norm);
+}
+
 // Turbo3: 3-bit PolarQuant (2-bit qs + 1-bit sign), block size 32.
 static __device__ __forceinline__ void dequantize_turbo3_0(const void * vx, const int64_t ib, const int iqs, float2 & v){
     const block_turbo3_0 * x = (const block_turbo3_0 *) vx;

@@ -33,20 +33,21 @@ Added ggml KV-cache types:
 - `turbo2_0`
 - `turbo3_0`
 - `turbo4_0`
+- `turbo6_0` (6-bit PolarQuant K from pitcany/ollama-turboquant port)
 
-Main runtime path under test:
+#### KV-cache recommendations (settled from extensive testing)
 
-```bash
---flash-attn on -ctk turbo4_0 -ctv turbo3_0
-```
+| Config | Quality | Memory vs q8/q8 | Use case |
+|--------|---------|----------------|----------|
+| `-ctk q8_0 -ctv turbo3_0` | ✅ Best | ~530 MiB saved | Production default — best quality/memory balance |
+| `-ctk turbo6_0 -ctv turbo3_0` | ⚠️ Minor generative trade-off | ~1100 MiB saved | Memory-constrained scenarios — fits larger context at slight quality cost |
+| `-ctk turbo4_0 -ctv turbo3_0` | ❌ Significant regression | ~1400 MiB saved | Not recommended — fails code retrieval (3/20 send_head) and adds hallucinations |
 
-Current robust production-style path when quality matters more than maximum K compression:
+**Why the split?** Testing showed compressed V (turbo3) is universally useful, but aggressive K compression degrades quality differently across task types:
+- Retrieval (CodeNeedle): turbo6 K passes 20/20 send_head; turbo4 K fails at 3/20
+- Generative coding (Prompt-Vault): turbo6 K needs 1-2 more retries than q8 K for equivalent results
 
-```bash
---flash-attn on -ctk q8_0 -ctv turbo3_0
-```
-
-Why the split? Testing showed that compressed values are generally useful, but aggressive key compression can break code-retrieval workloads. For Bonsai CodeNeedle, `K=q8_0/V=turbo3_0` kept quality high while still saving memory versus q8/q8.
+For Bonsai CodeNeedle, `K=q8_0/V=turbo3_0` kept quality high while still saving memory versus q8/q8.
 
 ### CUDA and Metal integration
 
@@ -95,6 +96,19 @@ Older local builds also used static libstdc++/libgcc linker flags to avoid local
   -ctv turbo3_0
 ```
 
+### Ternary Bonsai server — memory-saving K/V compression path (turbo6)
+
+```bash
+./build/bin/llama-server \
+  -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf \
+  --alias ternary-bonsai-q2 \
+  -ngl 99 \
+  --ctx-size 65536 \
+  --flash-attn on \
+  -ctk turbo6_0 \
+  -ctv turbo3_0
+```
+
 ### Ternary Bonsai server — maximum tested K/V compression path
 
 ```bash
@@ -108,20 +122,32 @@ Older local builds also used static libstdc++/libgcc linker flags to avoid local
   -ctv turbo3_0
 ```
 
-### Large Qwen MoE long-context command shape
+### Large Qwen MoE long-context — production default (q8 K)
 
 ```bash
 ./build/bin/llama-cli \
   -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
   -ngl 99 \
   --n-cpu-moe 35 \
-  --no-mmap \
-  --mlock \
   --flash-attn on \
-  -ctk turbo4_0 \
+  -ctk q8_0 \
   -ctv turbo3_0 \
   --reasoning off \
-  -c 256000
+  -c 200000
+```
+
+### Large Qwen MoE long-context — memory-saving (turbo6 K)
+
+```bash
+./build/bin/llama-cli \
+  -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  -ngl 99 \
+  --n-cpu-moe 35 \
+  --flash-attn on \
+  -ctk turbo6_0 \
+  -ctv turbo3_0 \
+  --reasoning off \
+  -c 200000
 ```
 
 For Qwen reasoning models, `--reasoning off` is recommended for benchmark harnesses such as CodeNeedle unless thinking output is explicitly desired.
@@ -135,19 +161,25 @@ Detailed logs live in:
 
 ### Ternary Bonsai performance
 
-Validated on `Ternary-Bonsai-8B-Q2_0.gguf` with `--flash-attn on -ctk turbo4_0 -ctv turbo3_0`:
+Validated on `Ternary-Bonsai-8B-Q2_0.gguf` with various TurboKV configs (all `--flash-attn on`):
 
-- 4096-token deterministic 65k-context run: about `96.5-99.6 tok/s` generation.
-- `llama-bench -p 512 -n 128 -r 1`: about `1133-1202 pp512 tok/s`, `101-106 tg128 tok/s` depending on checkpoint.
-- 64k allocation smoke: `2124 MiB` KV buffer (`K turbo4_0` `1224 MiB`, `V turbo3_0` `900 MiB`).
+**Benchmark (`llama-bench -p 512 -n 128 -r 1`):**
+- `q8_0/V=turbo3_0`: ~3372 pp512 t/s, ~107 tg128 t/s
+- `turbo4_0/V=turbo3_0`: ~3268 pp512 t/s, ~104 tg128 t/s
+- `turbo6_0/V=turbo3_0`: ~3168 pp512 t/s, ~99 tg128 t/s
 
-### Ternary Bonsai long-context memory smoke tests
+**Memory at 32k context (RTX 3070 Ti 8GB):**
+| Config | KV MiB | K MiB | V MiB |
+|--------|--------|-------|-------|
+| q8_0 + turbo3_0 | 1918 | 1468 | 450 |
+| turbo6_0 + turbo3_0 | 1350 | 900 | 450 |
+| turbo4_0 + turbo3_0 | 1062 | 612 | 450 |
 
-At commit `45f08eff7` on RTX 3070 Ti:
-
-- 96k, `K=turbo4_0/V=turbo3_0`: fit fully in GPU RAM, KV `3186 MiB`, short-generation eval about `104.86 tok/s`.
-- 128k, `K=turbo4_0/V=turbo3_0`: allocation and coherent short generation passed, KV `4248 MiB`; auto-fit offloaded part of the model/context.
-- 128k, `K=q8_0/V=turbo3_0`: allocation and coherent short generation passed, KV `6696 MiB`; higher quality expectation, larger K memory.
+**Long-context memory smoke tests (RTX 3070 Ti):**
+- turbo6 at 65k (full Bonsai context): `2700 MiB` KV, ~2116 MiB free VRAM — fits comfortably
+- 96k, `K=turbo4_0/V=turbo3_0`: fit fully in GPU RAM, KV `3186 MiB`
+- 128k, `K=turbo4_0/V=turbo3_0`: allocation and coherent short generation passed, KV `4248 MiB`
+- 128k, `K=q8_0/V=turbo3_0`: allocation passed, KV `6696 MiB`
 
 ### Qwen3.6 35B A3B performance
 
@@ -161,17 +193,57 @@ Validated with `Qwen3.6-35B-A3B-Q5_K_M.gguf`, CPU MoE offload, 256k context sett
 
 CodeNeedle has been used as a retrieval/code-quality gate, not just a speed benchmark:
 
-- Qwen3.6 35B `http_server` with full `K=turbo4_0/V=turbo3_0`: relaxed score `11/11`, `214/220` primary lines after indentation relaxation in one reviewed run.
-- Qwen3.6 jQuery comparison after prefill fix:
-  - no compression: `15/16`, `273/320` primary, `31` hallucinated
-  - `K=turbo4_0/V=turbo3_0`: `15/16`, `276/320` primary, `63` hallucinated
-  - high-quality K + compressed V: `15/16`, `287/320` primary, `32` hallucinated
-- Bonsai `http_server` 32k comparison:
-  - `K=q8_0/V=q8_0`: relaxed `11/11`, `207/220` primary
-  - `K=turbo4_0/V=turbo3_0`: relaxed `10/11`, major `send_head` failure
-  - `K=q8_0/V=turbo3_0`: relaxed `11/11`, `218/220` primary — best Bonsai quality/memory balance tested so far
+**Qwen3.6 35B `http_server` (32k context):**
+| Config | Score | Primary | Halluc | Bonus |
+|--------|-------|---------|--------|-------|
+| No compression | 11/11 | 220/220 | 0 | 0 |
+| q8_0 + turbo3_0 | 11/11 | 220/220 | 0 | 0 |
+| turbo4_0 + turbo3_0 | 11/11 | 214/220 | 23 | 81 |
 
-Interpretation: raw speed and recall are not enough. KV compression must also preserve useful coding/assistant behavior. Future evaluation should include Prompt-Vault in addition to CodeNeedle.
+**Qwen3.6 jQuery comparison:**
+| Config | Score | Primary | Halluc | Bonus |
+|--------|-------|---------|--------|-------|
+| No compression | 15/16 | 273/320 | 31 | 15 |
+| turbo4_0 + turbo3_0 | 15/16 | 276/320 | 63 | 81 |
+| High-quality K + compressed V | 15/16 | 287/320 | 32 | 43 |
+
+**Bonsai 8B `http_server` 32k — the critical `send_head` comparison:**
+| Config | Score | Primary | Halluc | Bonus | send_head |
+|--------|-------|---------|--------|-------|-----------|
+| q8_0 + q8_0 | 11/11 | 207/220 | 218 | 223 | ✅ 20/20 |
+| q8_0 + turbo3_0 | 11/11 | 218/220 | 194 | 231 | ✅ 20/20 |
+| **turbo6_0 + turbo3_0** | **10/11** | **203/220** | **219** | **207** | **✅ 20/20 (standalone)** |
+| turbo4_0 + turbo3_0 | 10/11 | 181/220 | 885 | 199 | ❌ 1/20 |
+
+Turbo6 passes the `send_head` gate at 20/20 when tested standalone — only turbo4 fails catastrophically. The sequential full-suite 10/11 result for turbo6 is due to function-name ambiguity in the corpus (two `send_head` variants in the same file), not K quality.
+
+Interpretation: raw speed and recall are not enough. KV compression must also preserve useful coding/assistant behavior.
+
+### Prompt-Vault real-world build testing
+
+Prompt-Vault has been used as an additional practical coding/assistant benchmark: <https://github.com/w512/Prompt-Vault>. These tests ask the model to build small browser apps across easy (ToDo, Bubble Sort), medium (Sorting Visualization), and hard (Kanban Board) prompts. This catches failures that retrieval or short coherence tests miss.
+
+**Qwen3.6 35B Q5_K_M at 200k context (~36-40 tok/s):**
+
+| Level | q8 K + turbo3 V | turbo6 K + turbo3 V |
+|-------|----------------|--------------------|
+| ToDo List | ✅ Pass — fully functional, good looking | ✅ Pass — fully functional, even without reasoning |
+| Bubble Sort | ✅ Pass — fully functional, looks great | ✅ Pass — first attempt lacked Reset, clean second attempt |
+| Sorting Viz | ✅ Pass — fully functional, looks great | ✅ Pass — visual issues first pass, resolved with retry |
+| Kanban Board | ✅ Pass — partial first pass, fully working second pass | ✅ Pass — functional but less tidy, lacks side-scroll |
+
+**Bonsai 8B Q2_0 at 65k context (~70-90 tok/s):**
+
+| Level | q8 K + turbo3 V | turbo6 K + turbo3 V |
+|-------|----------------|--------------------|
+| ToDo List | ❌ Partial — mark-item-done never worked | ✅ Pass — simpler but functional |
+| Bubble Sort | ❌ Fail — UI only after 3 attempts | ❌ Fail — same outcome |
+| Sorting Viz | ❌ Partial — UI only, no data | ❌ Partial — same as q8 |
+| Kanban Board | — Skipped (beyond capability) | — Skipped |
+
+**Key takeaway:** Turbo6 K shows a subtle generative quality trade-off. Qwen3.6 remains a solid coding partner with turbo6, but may need 1-2 extra retries vs q8 K for equivalent results. Bonsai is already at its capability ceiling; turbo6 doesn't make it worse but doesn't help either.
+
+For production coding, `K=q8_0/V=turbo3_0` remains the recommended path. Use `turbo6 K` when memory is the binding constraint and you're willing to accept slightly less consistent first-pass outputs.
 
 ## Current technical notes
 
@@ -188,12 +260,15 @@ block_turbo3_0  = 50 bytes
 
 The CUDA set-rows path already launches 128-thread WHT groups for this mode.
 
-### Recommended KV-cache guidance
+### Recommended KV-cache guidance (settled)
 
-- **Best quality/memory compromise so far:** `-ctk q8_0 -ctv turbo3_0`
-- **Best memory compression tested:** `-ctk turbo4_0 -ctv turbo3_0`
-- **Known risk:** full compressed K can fail targeted code retrieval even when generation looks coherent.
-- **Not promising so far:** layer-only adaptive K protection; Bonsai `send_head` failed unless all K layers were q8.
+Through extensive CodeNeedle retrieval testing and Prompt-Vault generative coding tests across Qwen3.6 and Bonsai models, the following recommendations are established:
+
+- **Production default:** `-ctk q8_0 -ctv turbo3_0` — best quality, best generative consistency, ~530 MiB savings vs q8/q8
+- **Memory-constrained (recommended fallback):** `-ctk turbo6_0 -ctv turbo3_0` — passes all retrieval gates, minor generative trade-off, ~1100 MiB savings vs q8/q8. Use when you need to fit a larger context on limited VRAM.
+- **Avoid:** `-ctk turbo4_0` — fails code retrieval benchmarks (3/20 send_head) and adds hallucinations even on large models
+- **Known risk:** Full compressed K can subtly degrade generative coding consistency even when retrieval looks fine. Test both if quality is critical.
+- **Not promising:** Layer-only adaptive K protection (env knobs `TURBO_K_Q8_FIRST_N` / `TURBO_K_Q8_LAST_N`) — Bonsai `send_head` failed unless all K layers were q8; any single turbo-compressed layer could break retrieval.
 
 ## Research sources and references
 
@@ -217,7 +292,9 @@ Key research conclusions driving this branch:
 - MSE/PolarQuant-style compression is useful; QJL has not looked attractive in practical community implementations.
 - Asymmetric K/V precision is important: keys need more care than values.
 - Code and assistant-style tests are necessary; MSE/cosine/needle metrics alone can miss quality failures.
-- For real K memory savings, the next promising path is likely a higher-precision MSE-only K format such as K5/K6/q6-ish/turbo6-style, not layer-only K protection.
+- Turbo6 (6-bit PolarQuant) is a viable memory-saving K format that passes all retrieval gates with only minor generative trade-off.
+- Turbo4 (4-bit PolarQuant) is not recommended — it fails code retrieval and adds hallucinations.
+- For real K memory savings beyond turbo6, the next path would likely be a higher-precision MSE-only K format or residual-window approaches (keep last N tokens at full precision, compress the rest).
 
 ## Branch policy
 

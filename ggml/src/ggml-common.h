@@ -326,6 +326,20 @@ static_assert(sizeof(block_turbo4_0) == 2*sizeof(ggml_half) + QK_TURBO4*3/8 + QK
 
 static_assert(QK_TURBO4 == 128, "turbo4 kernels assume QK_TURBO4 == 128");
 
+// TurboQuant 6-bit MSE-only: 6-bit PolarQuant indices (no QJL)
+// Storage block size = 128: one block per rotation group
+#define QK_TURBO6 128
+#define QK_TURBO6_GROUP 128
+#define NL_TURBO6     (QK_TURBO6 / 16)
+#define NL_TURBO6_VEC (QK_TURBO6 / 4)
+typedef struct {
+    ggml_half  norm;
+    ggml_half  rnorm;
+    uint8_t    qs[QK_TURBO6 * 6 / 8];
+} block_turbo6_0;
+static_assert(sizeof(block_turbo6_0) == 2*sizeof(ggml_half) + QK_TURBO6*6/8, "wrong turbo6_0 block size/padding");
+static_assert(QK_TURBO6 == 128, "turbo6 kernels assume QK_TURBO6 == 128");
+
 // TurboQuant 2-bit
 #define QK_TURBO2 128
 #define QK_TURBO2_GROUP 128

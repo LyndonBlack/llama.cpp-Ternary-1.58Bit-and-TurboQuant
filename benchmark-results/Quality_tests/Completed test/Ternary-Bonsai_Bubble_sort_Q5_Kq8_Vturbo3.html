@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bubble Sort Visualization</title>
+  <style>
+    /* General styling */
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Container for the array visualization */
+    #array {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+      width: 80%;
+      max-width: 800px;
+    }
+
+    /* Each bar represents an element in the array */
+    .bar {
+      width: 40px;
+      background-color: #333;
+      border-radius: 10px;
+      margin: 5px;
+      transition: all 0.2s ease;
+    }
+
+    /* Highlight the two bars being compared */
+    .bar.comparison {
+      background-color: #00ff99;
+      border: 2px solid #00ff99;
+    }
+
+    /* Sorted bars (final position) */
+    .bar.sorted {
+      background-color: #9900ff;
+      border: 2px solid #9900ff;
+    }
+
+    /* Controls */
+    .controls {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .controls button {
+      margin: 5px 0;
+      padding: 10px 15px;
+      background-color: #555;
+      border: none;
+      border-radius: 5px;
+      color: #fff;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .controls button:hover {
+      background-color: #777;
+    }
+
+    .controls input[type="range"] {
+      width: 200px;
+      margin: 10px 0;
+    }
+
+    .controls input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      background-color: #ffffff;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .controls input[type="range"]::-moz-range-thumb {
+      width: 15px;
+      height: 15px;
+      background-color: #ffffff;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .stats {
+      margin-top: 20px;
+      font-size: 18px;
+      text-align: center;
+    }
+
+    .stats span {
+      margin: 0 10px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      #array {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="array"></div>
+  <div class="controls">
+    <button id="startSort">Start Sort</button>
+    <button id="reset">Reset</button>
+    <input type="range" id="speedSlider" min="100" max="1000" value="500">
+  </div>
+  <div class="stats">
+    <span>Comparisons: <span id="comparisonCount">0</span></span>
+  </div>
+
+  <script>
+    // Initialize array and visualization
+    const array = [];
+    const arrayContainer = document.getElementById('array');
+    const comparisonCount = document.getElementById('comparisonCount');
+    const startSortBtn = document.getElementById('startSort');
+    const resetBtn = document.getElementById('reset');
+    const speedSlider = document.getElementById('speedSlider');
+
+    // Set up array with random values
+    function resetArray() {
+      array = Array.from({ length: 10 }, () => Math.floor(Math.random() * 100));
+      updateVisualization();
+    }
+
+    // Generate and append bars
+    function updateVisualization() {
+      arrayContainer.innerHTML = '';
+      array.forEach((value, index) => {
+        const bar = document.createElement('div');
+        bar.className = 'bar';
+        bar.style.height = `${value}px`;
+        bar.style.left = `${index * 50}px`;
+        bar.style.animation = 'none';
+        bar.dataset.index = index;
+        bar.dataset.value = value;
+        arrayContainer.appendChild(bar);
+      });
+    }
+
+    // Start the Bubble Sort animation
+    function startSort() {
+      if (array.length <= 1) return;
+
+      let swapped = true;
+      let i = 0;
+      const delay = speedSlider.value;
+
+      while (swapped) {
+        swapped = false;
+        for (let j = 0; j < array.length - i - 1; j++) {
+          const bar1 = arrayContainer.querySelector(`[data-index="${j}"]`);
+          const bar2 = arrayContainer.querySelector(`[data-index="${j + 1}"]`);
+
+          // Highlight the two bars being compared
+          bar1.classList.add('comparison');
+          bar2.classList.add('comparison');
+
+          // Swap if needed
+          if (array[j] > array[j + 1]) {
+            // Swap values
+            [array[j], array[j + 1]] = [array[j + 1], array[j]];
+
+            // Swap positions
+            [bar1, bar2] = [bar2, bar1];
+
+            // Update comparison count
+            comparisonCount.textContent = comparisonCount.textContent + 1;
+            swapped = true;
+          }
+
+          // Remove highlight after comparison
+          setTimeout(() => {
+            bar1.classList.remove('comparison');
+            bar2.classList.remove('comparison');
+          }, delay);
+        }
+
+        // After each pass, the largest element is at the end
+        i++;
+      }
+    }
+
+    // Reset the array and stop any current sort
+    resetBtn.addEventListener('click', resetArray);
+    startSortBtn.addEventListener('click', startSort);
+
+    // Update the visualization when the array changes
+    resetArray();
+  </script>
+
+</body>
+</html>
+

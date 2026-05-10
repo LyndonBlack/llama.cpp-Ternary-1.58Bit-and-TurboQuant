@@ -37,6 +37,7 @@ void quantize_row_tq2_0(const float * GGML_RESTRICT x, void * GGML_RESTRICT y, i
 void quantize_row_turbo2_0_ref(const float * GGML_RESTRICT x, block_turbo2_0 * GGML_RESTRICT y, int64_t k);
 void quantize_row_turbo3_0_ref(const float * GGML_RESTRICT x, block_turbo3_0 * GGML_RESTRICT y, int64_t k);
 void quantize_row_turbo4_0_ref(const float * GGML_RESTRICT x, block_turbo4_0 * GGML_RESTRICT y, int64_t k);
+void quantize_row_turbo6_0_ref(const float * GGML_RESTRICT x, block_turbo6_0 * GGML_RESTRICT y, int64_t k);
 
 
 void quantize_row_iq4_nl (const float * GGML_RESTRICT x, void * GGML_RESTRICT y, int64_t k);

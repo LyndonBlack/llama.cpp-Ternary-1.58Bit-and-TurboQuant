@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager</title>
+    <!-- Task 1: Basic CSS Styling -->
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            margin: 0;
+            padding-top: 50px;
+        }
+
+        .container {
+            background: white;
+            width: 400px;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-top: 0;
+        }
+
+        /* Task 5 & 6: Statistics Counter */
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            background-color: #eef;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            color: #555;
+            font-weight: bold;
+        }
+
+        /* Task 2: Input Styling */
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+
+        button#add-btn, button#clear-btn {
+            padding: 10px 15px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            transition: background 0.2s;
+        }
+
+        #add-btn {
+            background-color: #28a745;
+        }
+        #add-btn:hover { background-color: #218838; }
+
+        #clear-btn {
+            background-color: #dc3545;
+            margin-top: 10px;
+            width: 100%;
+        }
+        #clear-btn:hover { background-color: #c82333; }
+
+        /* Task List Styling */
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        li {
+            background: #fff;
+            border-bottom: 1px solid #eee;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        li:last-child {
+            border-bottom: none;
+        }
+
+        li span {
+            flex-grow: 1;
+            margin-right: 10px;
+        }
+
+        /* Task 3: Completed Style */
+        li.completed span {
+            text-decoration: line-through;
+            color: #888;
+        }
+
+        li.completed {
+            background-color: #fcfcfc;
+        }
+
+        /* Task 4: Delete Button Styling */
+        .delete-btn {
+            background: #ff4d4d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0;
+        }
+        .delete-btn:hover {
+            background: #cc0000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <!-- Task 1: Header -->
+        <h1>Task Manager</h1>
+
+        <!-- Task 5 & 6: Counters -->
+        <div class="stats">
+            <span id="active-count">Active: 0</span>
+            <span id="completed-count">Completed: 0</span>
+            <span id="total-count">Total: 0</span>
+        </div>
+
+        <!-- Task 2: Input Area -->
+        <div class="input-group">
+            <input type="text" id="task-input" placeholder="Enter a new task...">
+            <button id="add-btn">Add Task</button>
+        </div>
+
+        <!-- Task 1: List Container -->
+        <ul id="task-list">
+            <!-- Tasks will be injected here by JavaScript -->
+        </ul>
+
+        <!-- Task 7: Clear All -->
+        <button id="clear-btn">Clear All</button>
+    </div>
+
+    <script>
+        // --- State Management ---
+        // We start with empty array. 
+        // If LocalStorage has data, load it. Else use default hardcoded tasks.
+        let tasks = [];
+        
+        const defaultTasks = [
+            { id: 1, text: "Buy groceries", completed: false },
+            { id: 2, text: "Walk the dog", completed: false },
+            { id: 3, text: "Read a book", completed: false },
+            { id: 4, text: "Clean the kitchen", completed: false },
+            { id: 5, text: "Pay bills", completed: false }
+        ];
+
+        // DOM Elements
+        const taskInput = document.getElementById('task-input');
+        const addBtn = document.getElementById('add-btn');
+        const taskList = document.getElementById('task-list');
+        const activeCountSpan = document.getElementById('active-count');
+        const completedCountSpan = document.getElementById('completed-count');
+        const totalCountSpan = document.getElementById('total-count');
+        const clearBtn = document.getElementById('clear-btn');
+
+        // --- Functions ---
+
+        // Initialize App
+        function init() {
+            const storedTasks = localStorage.getItem('myTasks');
+            if (storedTasks) {
+                tasks = JSON.parse(storedTasks);
+            } else {
+                tasks = defaultTasks;
+            }
+            renderTasks();
+            updateStats();
+        }
+
+        // Save to LocalStorage (Task 7)
+        function saveToLocalStorage() {
+            localStorage.setItem('myTasks', JSON.stringify(tasks));
+            updateStats();
+        }
+
+        // Update Stats (Tasks 5 & 6)
+        function updateStats() {
+            const total = tasks.length;
+            const completed = tasks.filter(t => t.completed).length;
+            const active = total - completed;
+
+            activeCountSpan.textContent = `Active: ${active}`;
+            completedCountSpan.textContent = `Completed: ${completed}`;
+            totalCountSpan.textContent = `Total: ${total}`;
+        }
+
+        // Render the list (Tasks 1, 2, 3, 4)
+        function renderTasks() {
+            taskList.innerHTML = ''; // Clear current list
+
+            tasks.forEach(task => {
+                // Create List Item
+                const li = document.createElement('li');
+                if (task.completed) {
+                    li.classList.add('completed');
+                }
+
+                // Task Text
+                const span = document.createElement('span');
+                span.textContent = task.text;
+                
+                // Click on text or LI to toggle (Task 3)
+                li.addEventListener('click', (e) => {
+                    // Prevent toggling if we clicked the delete button
+                    if(e.target.classList.contains('delete-btn')) return;
+                    
+                    toggleTask(task.id);
+                });
+
+                // Delete Button (Task 4)
+                const delBtn = document.createElement('button');
+                delBtn.textContent = '✕';
+                delBtn.classList.add('delete-btn');
+                delBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Stop propagation so it doesn't trigger the 'completed' toggle
+                    deleteTask(task.id);
+                });
+
+                li.appendChild(span);
+                li.appendChild(delBtn);
+                taskList.appendChild(li);
+            });
+        }
+
+        // Add Task (Task 2)
+        function addTask() {
+            const text = taskInput.value.trim();
+            if (text === '') return;
+
+            const newTask = {
+                id: Date.now(), // simple unique ID
+                text: text,
+                completed: false
+            };
+
+            tasks.push(newTask);
+            taskInput.value = ''; // Clear input
+            saveToLocalStorage();
+            renderTasks();
+        }
+
+        // Toggle Task Completion (Task 3)
+        function toggleTask(id) {
+            tasks = tasks.map(task => {
+                if (task.id === id) {
+                    return { ...task, completed: !task.completed };
+                }
+                return task;
+            });
+            saveToLocalStorage();
+            renderTasks();
+        }
+
+        // Delete Task (Task 4)
+        function deleteTask(id) {
+            tasks = tasks.filter(task => task.id !== id);
+            saveToLocalStorage();
+            renderTasks();
+        }
+
+        // Clear All (Task 7)
+        function clearAll() {
+            if(confirm("Are you sure you want to delete all tasks?")) {
+                tasks = [];
+                localStorage.removeItem('myTasks'); // Task 7
+                renderTasks();
+            }
+        }
+
+        // --- Event Listeners ---
+        addBtn.addEventListener('click', addTask);
+        
+        // Allow adding task by pressing "Enter" key
+        taskInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                addTask();
+            }
+        });
+
+        clearBtn.addEventListener('click', clearAll);
+
+        // Run Init
+        init();
+
+    </script>
+</body>
+</html>
+

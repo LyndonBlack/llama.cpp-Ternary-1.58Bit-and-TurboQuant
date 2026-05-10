@@ -167,7 +167,7 @@ llama_kv_cache::llama_kv_cache(
     const int turbo_k_q8_first_n = TURBO_K_Q8_FIRST_N ? std::max(0, atoi(TURBO_K_Q8_FIRST_N)) : 0;
     const bool turbo_k_adaptive_q8 =
         (turbo_k_q8_last_n > 0 || turbo_k_q8_first_n > 0) &&
-        (type_k == GGML_TYPE_TURBO3_0 || type_k == GGML_TYPE_TURBO4_0 || type_k == GGML_TYPE_TURBO2_0);
+        (type_k == GGML_TYPE_TURBO3_0 || type_k == GGML_TYPE_TURBO4_0 || type_k == GGML_TYPE_TURBO2_0 || type_k == GGML_TYPE_TURBO6_0);
 
     if (turbo_k_adaptive_q8) {
         LLAMA_LOG_INFO("%s: TurboKV adaptive K active: first %d + final %d layers use q8_0 K instead of %s (TURBO_K_Q8_FIRST_N/TURBO_K_Q8_LAST_N)\n",
@@ -233,11 +233,13 @@ llama_kv_cache::llama_kv_cache(
         const bool k_is_turbo_alloc =
             layer_type_k == GGML_TYPE_TURBO3_0 ||
             layer_type_k == GGML_TYPE_TURBO4_0 ||
+            layer_type_k == GGML_TYPE_TURBO6_0 ||
             layer_type_k == GGML_TYPE_TURBO2_0;
 
         const bool v_is_turbo_alloc =
             layer_type_v == GGML_TYPE_TURBO3_0 ||
             layer_type_v == GGML_TYPE_TURBO4_0 ||
+            layer_type_v == GGML_TYPE_TURBO6_0 ||
             layer_type_v == GGML_TYPE_TURBO2_0;
 
         uint32_t n_embd_k_gqa_eff = n_embd_k_gqa;
@@ -1213,7 +1215,7 @@ ggml_tensor * llama_kv_cache::get_k(ggml_context * ctx, int32_t il, uint32_t n_k
     const uint64_t n_embd_k_gqa = k->ne[0];
 
     // For turbo-padded caches, n_embd_k_gqa may be larger than hparams value
-    const bool k_is_turbo = (k->type == GGML_TYPE_TURBO3_0 || k->type == GGML_TYPE_TURBO4_0 || k->type == GGML_TYPE_TURBO2_0);
+    const bool k_is_turbo = (k->type == GGML_TYPE_TURBO3_0 || k->type == GGML_TYPE_TURBO4_0 || k->type == GGML_TYPE_TURBO2_0 || k->type == GGML_TYPE_TURBO6_0);
     if (k_is_turbo) {
         assert(n_embd_k_gqa >= hparams.n_embd_k_gqa(il));
     } else {
@@ -1247,7 +1249,7 @@ ggml_tensor * llama_kv_cache::get_v(ggml_context * ctx, int32_t il, uint32_t n_k
     assert(n_embd_v_gqa >= hparams.n_embd_v_gqa(il));
 
     // Use padded head_dim for turbo types
-    const bool v_is_turbo = (v->type == GGML_TYPE_TURBO3_0 || v->type == GGML_TYPE_TURBO4_0 || v->type == GGML_TYPE_TURBO2_0);
+    const bool v_is_turbo = (v->type == GGML_TYPE_TURBO3_0 || v->type == GGML_TYPE_TURBO4_0 || v->type == GGML_TYPE_TURBO2_0 || v->type == GGML_TYPE_TURBO6_0);
     const uint32_t head_v = hparams.n_embd_head_v(il);
     const uint32_t head_v_eff = (v_is_turbo && head_v % 128 != 0)
         ? ((head_v + 127) / 128) * 128 : head_v;
@@ -1287,7 +1289,7 @@ ggml_tensor * llama_kv_cache::cpy_k(ggml_context * ctx, ggml_tensor * k_cur, ggm
     // Turbo zero-padding: pad each head to next multiple of 128 before merging dims.
     // k_cur shape here is (n_embd_head, n_head, n_tokens).
     // ggml_pad pads ne[0] with zeros — exactly what we need per-head.
-    const bool k_is_turbo = (k->type == GGML_TYPE_TURBO3_0 || k->type == GGML_TYPE_TURBO4_0 || k->type == GGML_TYPE_TURBO2_0);
+    const bool k_is_turbo = (k->type == GGML_TYPE_TURBO3_0 || k->type == GGML_TYPE_TURBO4_0 || k->type == GGML_TYPE_TURBO2_0 || k->type == GGML_TYPE_TURBO6_0);
     const bool k_needs_pad = k_is_turbo && (n_embd_head % 128 != 0);
     if (k_needs_pad) {
         const int64_t pad_amount = ((n_embd_head + 127) / 128) * 128 - n_embd_head;
@@ -1340,7 +1342,7 @@ ggml_tensor * llama_kv_cache::cpy_v(ggml_context * ctx, ggml_tensor * v_cur, ggm
     const int64_t n_tokens    = v_cur->ne[2];
 
     // Turbo zero-padding: pad V head_dim to next multiple of 128
-    const bool v_is_turbo = (v->type == GGML_TYPE_TURBO3_0 || v->type == GGML_TYPE_TURBO4_0 || v->type == GGML_TYPE_TURBO2_0);
+    const bool v_is_turbo = (v->type == GGML_TYPE_TURBO3_0 || v->type == GGML_TYPE_TURBO4_0 || v->type == GGML_TYPE_TURBO2_0 || v->type == GGML_TYPE_TURBO6_0);
     const bool v_needs_pad = v_is_turbo && (n_embd_head % 128 != 0);
     if (v_needs_pad) {
         const int64_t pad_amount = ((n_embd_head + 127) / 128) * 128 - n_embd_head;

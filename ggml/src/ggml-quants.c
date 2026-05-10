@@ -5506,6 +5506,7 @@ bool ggml_validate_row_data(enum ggml_type type, const void * data, size_t nbyte
             } break;
         case GGML_TYPE_TURBO3_0:
         case GGML_TYPE_TURBO4_0:
+        case GGML_TYPE_TURBO6_0:
         case GGML_TYPE_TURBO2_0:
             // WHT-rotated / TurboQuant KV types: shallow validation only.
             break;

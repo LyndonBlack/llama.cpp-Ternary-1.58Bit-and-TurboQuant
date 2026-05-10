@@ -1,0 +1,48 @@
+https://github.com/w512/Prompt-Vault - Real world building
+
+Model - Qwen3.6-35B-A3B-Q5_K_M.gguf - Running K-q8 V-Turbo3 - 36-40t/s
+-------------------------------------------------------------------
+~/AI/ternaryturboquant/llama.cpp/build/bin/llama-server -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf --alias qwen3.6-35b-a3b -ngl 99 --n-cpu-moe 39 --no-mmap --ctx-size 200000 --flash-attn on -ctk q8_0 -ctv turbo3_0 --host 127.0.0.1 --port 8080
+
+Easy - ToDo List - Qwen3.6_Todo_list_Q5_Kq8_Vturbo3.html - Pass, fully functional, looks good.
+Easy - Bubble Sort - Qwen3.6_Bubble_sort_Q5_Kq8_Vturbo3.html - Pass, fully functional, looks great.
+Medium - Sorting Visualization - Qwen3.6_Sorting_Visualization_Q5_Kq8_Vturbo3.html - Pass, fully functional, looks great.
+Hard - Kanban Board - Qwen3.6_Kanban_board_Q5_Kq8_Vturbo3.html - Partial Pass, Almost fully functional, Adding new card to column not working. 2nd pass fully working, date selector is clean, all requested functions in place.
+
+Outcome: Qwen3.6 seems very capable as a heavy coding partner.
+
+Model - Qwen3.6-35B-A3B-Q5_K_M.gguf - Running K-Turbo6 V-Turbo3 - 36-40t/s
+-------------------------------------------------------------------
+~/AI/ternaryturboquant/llama.cpp/build/bin/llama-server -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf --alias qwen3.6-35b-a3b -ngl 99 --n-cpu-moe 39 --no-mmap --ctx-size 200000 --flash-attn on -ctk turbo6_0 -ctv turbo3_0 --host 127.0.0.1 --port 8080
+
+Easy - ToDo List - Qwen3.6_Todo_list_Q5_Kturbo6_Vturbo3.html - Pass, fully functional, looks good. - Even without reasoning.
+Easy - Bubble Sort - Qwen3.6_Bubble_sort_Q5_Kturbo6_Vturbo3.html - Pass, fully functional, looks great, not quite as pretty - First attempt lacked Reset option, but second clean attempt worked.
+Medium - Sorting Visualization - Qwen3.6_Sorting_Visualization_Q5_Kturbo6_Vturbo3.html - Parital Pass, All elements appear but no data visible in bubbles, seems to run but not display the bubbles, Second clean attempt was almost perfect, but did not actaully mark the sort as finished on each run so had to refresh the page. a Second attempt at the code Qwen resolved the issues and became fully functional
+Hard - Kanban Board - Qwen3.6_Kanban_board_Q5_Kturbo6_Vturbo3.html - Pass-just, fully functional, lacks side scroll when columns outside the browser width, Not as visually tidy as the Q8 version, lacks some of the nice trash can icons for column removal.
+
+Outcome: Qwen3.6 with K-Turbo6 is still a solid acceptable coding assistant, but may need a second pass at tasks.
+
+Model - Ternary-Bonsai-8B-Q2_0.gguf - Running K-q8 V-Turbo3 - 70-90t/s
+-------------------------------------------------------------------
+~/AI/ternaryturboquant/llama.cpp/build/bin/llama-server -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf --alias ternary-bonsai-q2 -ngl 99 --ctx-size 65000 --flash-attn on -ctk q8_0 -ctv turbo3_0 --host 127.0.0.1 --port 8080
+
+Easy - ToDo List - Ternary-Bonsai_Todo_list_Q5_Kq8_Vturbo3.html - Partial functional, Can add new, Clear all, but the X button does remove individual, unattractive layout, 2nd attempt fixed layout and X removal, 3rd Attempt still couldn't mark the mark item off work
+Easy - Bubble Sort - Ternary-Bonsai_Bubble_sort_Q5_Kq8_Vturbo3.html - Buttons and slider appear, but no function or bubble - 3 attempts, no improvement.
+Medium - Sorting Visualization - Ternary-Bonsai_Sorting_Visualization_Q5_Kq8_Vturbo3.html - Partial function, headings, buttons sliders appear, can adjust size and speed, but no actual data or sorting, 3 attempts no improvement. No data or data generation process was added and sorting was decoupled from the data.
+Hard - Kanban Board - Not run as beyond capiblities
+
+Outcome: Bonsai Ternary Model is okay as a research tool, chat handling, and code suggestion, but not powerful enough to be a full coding partner.
+
+Model - Ternary-Bonsai-8B-Q2_0.gguf - Running K-q8 V-Turbo3 - 70-90t/s
+-------------------------------------------------------------------
+~/AI/ternaryturboquant/llama.cpp/build/bin/llama-server -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf --alias ternary-bonsai-q2 -ngl 99 --ctx-size 65000 --flash-attn on -ctk turbo6_0 -ctv turbo3_0 --host 127.0.0.1 --port 8080
+
+Easy - ToDo List - Ternary-Bonsai_Todo_list_Q5_Kturbo6_Vturbo3.html - Pass, Does not include new task checking to avoid blank tasks, Can add new, unattractive layout, 2nd attempt fixed layout - Actually bette than the Q8 text
+Easy - Bubble Sort - Ternary-Bonsai_Bubble_sort_Q5_Kturbo6_Vturbo3.html - Fail, Buttons, slider, data appears, data is populated, Reset button works, 3 attempts to resolve sort function still failed
+Medium - Sorting Visualization - Ternary-Bonsai_Sorting_Visualization_Q5_Kturbo6_Vturbo3.html - Fail - Partial function, headings, buttons sliders appear, can adjust size and speed, but no actual data or sorting, 2 attempts no improvement. No data or data generation process was added and sorting was decoupled from the data.
+Hard - Kanban Board - Not run as beyond capiblities
+
+Outcome: K-Turbo6 appears to have little additional negative impact on quality. The TernaryBonsai Model appears unable to resolve its own faults just recreating the same data. I attempted to increase temperature from default 0.8 to 1.0 but this causes the model to loop creating endless data fields. 
+
+-------------------------------------------------------------------
+Overall Outcome: Turbo6 for K appear promising, but does make the large model slightly less reliable on outcome, possibly not an acceptable trade off depending on task. No need to investigate Turbo5. Visual quality so thinking side of the model seems slightly less effective with K value set to Turbo6. This seems to match with the Codeneedle testing where Turbo K 5 seems less consistent than Q8 sometimes failing the Send_head on BonasiTernary test

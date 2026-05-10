@@ -433,7 +433,8 @@ extern "C" {
         GGML_TYPE_TURBO2_0   = 43, // TurboQuant 2-bit KV cache: WHT + 2-bit PolarQuant
         GGML_TYPE_TURBO3_0   = 44, // TurboQuant 3-bit KV cache: WHT + 3-bit PolarQuant
         GGML_TYPE_TURBO4_0   = 45, // TurboQuant 4-bit KV cache: WHT + 4-bit PolarQuant
-        GGML_TYPE_COUNT      = 46,
+        GGML_TYPE_TURBO6_0   = 46, // TurboQuant 6-bit KV cache: WHT + 6-bit PolarQuant
+        GGML_TYPE_COUNT      = 47,
     };
 
     // precision
