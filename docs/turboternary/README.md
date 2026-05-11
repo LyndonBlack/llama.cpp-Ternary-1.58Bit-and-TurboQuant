@@ -266,7 +266,6 @@ The KV cache drops from an estimated ~4,134 MiB (q8 K + turbo3 V at 512K, no pru
 ## Future Research Directions
 
 ### From TheTom/turboquant_plus (to explore)
-- **Block size optimization**: 5.12× compression potential
 - **Sparse V dequant**: +22.8% decode speed
 - **Boundary layer tuning** (deferred): TheTom found protecting first 2 + last 2 layers recovers 37-91% of quality gap from aggressive uniform K compression. Our entropy approach likely handles this automatically (high-entropy boundary layers naturally stay at q8), but we'll book-calibrate Bonsai and Qwen3-VL first to confirm before pursuing this further
 - **V at turbo2**: TheTom's independent validation confirms this is free when K precision is maintained
