@@ -1,0 +1,24 @@
+{
+  "model_name": "gpt2 (analytical reference)",
+  "n_layers": 12,
+  "n_heads": 12,
+  "n_heads_total": 144,
+  "n_calibration_seqs": 20,
+  "seq_len": 128,
+  "mean_entropy": 2.81,
+  "min_entropy": 0.02,
+  "max_entropy": 5.95,
+  "std_entropy": 1.46,
+  "entropy_cv": 0.5195729537366548,
+  "head_type_counts": {
+    "sink": 71,
+    "diffuse": 24,
+    "positional": 17,
+    "mixed": 16,
+    "selective": 14,
+    "focused": 2
+  },
+  "sink_ratio": 0.4930555555555556,
+  "diffuse_ratio": 0.16666666666666666,
+  "recommendation": "GO \u2014 SCJedi's GPT-2 results show 300\u00d7 entropy range"
+}

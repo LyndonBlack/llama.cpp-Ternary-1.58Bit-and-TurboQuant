@@ -381,6 +381,15 @@ extern "C" {
         // note: the samplers must be sampler chains (i.e. use llama_sampler_chain_init)
         struct llama_sampler_seq_config * samplers;
         size_t                            n_samplers;
+
+        // Per-layer K cache type override for entropy-guided mixed precision
+        // If non-null, called for each layer to determine the K cache quantization type
+        // user_data: passed as the first argument to the callback
+        // il: layer index (0-based)
+        // Return: ggml_type to use for this layer's K cache
+        // Return GGML_TYPE_COUNT to use the default type_k for that layer
+        ggml_type (*layer_type_k_cb)(void * user_data, int32_t il);
+        void * layer_type_k_user_data;
     };
 
     struct llama_model_tensor_override {
@@ -717,6 +726,18 @@ extern "C" {
               llama_seq_id seq_id_dst,
                  llama_pos p0,
                  llama_pos p1);
+
+    // Remove low-importance KV cells (entropy-guided pruning)
+    // positions: array of token positions to score
+    // scores: importance score for each position (higher = more important)
+    // n: number of position-score pairs
+    // keep_ratio: fraction of cells to keep (0.0-1.0)
+    LLAMA_API void llama_memory_prune_by_importance(
+            struct llama_context * ctx,
+            const llama_pos * positions,
+            const float * scores,
+            int32_t n,
+            float keep_ratio);
 
     // Removes all tokens that do not belong to the specified sequence
     LLAMA_API void llama_memory_seq_keep(

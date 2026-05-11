@@ -1,0 +1,21 @@
+{
+  "model_name": "gpt2",
+  "n_layers": 12,
+  "n_heads": 12,
+  "n_heads_total": 144,
+  "n_calibration_seqs": 20,
+  "seq_len": 128,
+  "mean_entropy": 0.9091751179642039,
+  "min_entropy": 0.026041766086200367,
+  "max_entropy": 2.011659136787057,
+  "std_entropy": 0.5277021281750846,
+  "entropy_cv": 0.5804185769587474,
+  "head_type_counts": {
+    "mixed": 20,
+    "focused": 6,
+    "sink": 118
+  },
+  "sink_ratio": 0.8194444444444444,
+  "diffuse_ratio": 0.0,
+  "recommendation": "\u2705 Healthy entropy CV (0.58) \u2014 significant head specialization\n\u2705 Wide entropy range (0.03\u20132.01 bits) \u2014 strong head differentiation\n\u2705 High sink head ratio (81.9%) \u2014 many heads are highly compressible\n\u26a0\ufe0f Few diffuse heads (0.0%) \u2014 less reallocation benefit\n\n\ud83d\udfe2 VERDICT: GO \u2014 entropy-adaptive approach strongly indicated\n\nTrial implementation plan:\n1. Add calibration mode to llama-server (--entropy-calibrate)\n2. Store per-head entropy scores in model metadata\n3. Implement per-head eviction or per-head mixed-precision quantization\n4. Test on Bonsai CodeNeedle suite at 32k context\n5. If quality holds, test on Qwen3.6 jQuery/CodeNeedle at 200k"
+}

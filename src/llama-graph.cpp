@@ -13,6 +13,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <numeric>
 #include <sstream>
@@ -2050,6 +2051,15 @@ ggml_tensor * llm_graph_context::build_attn_mha(
         kq = ggml_soft_max_ext(ctx0, kq, kq_mask, kq_scale, hparams.f_max_alibi_bias);
         ggml_soft_max_add_sinks(kq, sinks);
         cb(kq, "kq_soft_max", il);
+
+        if (cparams.entropy_calibration) {
+            // Create a persistent copy to prevent backend scheduler from aliasing memory
+            ggml_tensor * calib_out = ggml_cont(ctx0, kq);
+            char calib_name[64];
+            snprintf(calib_name, sizeof(calib_name), "calib_out_%d", il);
+            ggml_set_name(calib_out, calib_name);
+            ggml_build_forward_expand(gf, calib_out);
+        }
 
         if (!v_trans) {
             // note: avoid this branch

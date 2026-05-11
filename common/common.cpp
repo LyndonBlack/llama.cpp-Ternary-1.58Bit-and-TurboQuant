@@ -1232,6 +1232,15 @@ common_init_result::common_init_result(common_params & params) :
         cparams.n_samplers = pimpl->samplers_seq_config.size();
     }
 
+    // Set per-layer K type callback from entropy profile
+    if (params.entropy_layer_k_cb) {
+        cparams.layer_type_k_cb = [](void * user_data, int32_t il) -> ggml_type {
+            auto * cb = static_cast<std::function<ggml_type(int32_t)>*>(user_data);
+            return (*cb)(il);
+        };
+        cparams.layer_type_k_user_data = &params.entropy_layer_k_cb;
+    }
+
     llama_context * lctx = llama_init_from_model(model, cparams);
     if (lctx == NULL) {
         LOG_ERR("%s: failed to create context with model '%s'\n", __func__, params.model.path.c_str());

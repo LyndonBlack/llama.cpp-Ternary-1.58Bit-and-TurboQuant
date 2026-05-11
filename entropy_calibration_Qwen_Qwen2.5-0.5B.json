@@ -1,0 +1,21 @@
+{
+  "model_name": "Qwen/Qwen2.5-0.5B",
+  "n_layers": 24,
+  "n_heads": 14,
+  "n_heads_total": 336,
+  "n_calibration_seqs": 20,
+  "seq_len": 128,
+  "mean_entropy": 0.7941093860839662,
+  "min_entropy": 4.6686587449096265e-05,
+  "max_entropy": 2.035109256580472,
+  "std_entropy": 0.46431695474974916,
+  "entropy_cv": 0.5847015069793596,
+  "head_type_counts": {
+    "mixed": 23,
+    "focused": 57,
+    "sink": 256
+  },
+  "sink_ratio": 0.7619047619047619,
+  "diffuse_ratio": 0.0,
+  "recommendation": "\u2705 Healthy entropy CV (0.58) \u2014 significant head specialization\n\u2705 Wide entropy range (0.00\u20132.04 bits) \u2014 strong head differentiation\n\u2705 High sink head ratio (76.2%) \u2014 many heads are highly compressible\n\u26a0\ufe0f Few diffuse heads (0.0%) \u2014 less reallocation benefit\n\n\ud83d\udfe2 VERDICT: GO \u2014 entropy-adaptive approach strongly indicated\n\nTrial implementation plan:\n1. Add calibration mode to llama-server (--entropy-calibrate)\n2. Store per-head entropy scores in model metadata\n3. Implement per-head eviction or per-head mixed-precision quantization\n4. Test on Bonsai CodeNeedle suite at 32k context\n5. If quality holds, test on Qwen3.6 jQuery/CodeNeedle at 200k"
+}

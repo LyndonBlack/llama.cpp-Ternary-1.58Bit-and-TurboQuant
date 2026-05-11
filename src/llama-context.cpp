@@ -5,6 +5,7 @@
 #include "llama-impl.h"
 #include "llama-batch.h"
 #include "llama-io.h"
+#include "llama-kv-cache.h"
 #include "llama-memory.h"
 #include "llama-mmap.h"
 #include "llama-model.h"
@@ -64,6 +65,13 @@ llama_context::llama_context(
 
     cparams.cb_eval           = params.cb_eval;
     cparams.cb_eval_user_data = params.cb_eval_user_data;
+
+    // Per-layer K cache type callback for entropy-guided mixed precision
+    if (params.layer_type_k_cb) {
+        cparams.layer_type_k_cb = [params](int32_t il) -> ggml_type {
+            return params.layer_type_k_cb(params.layer_type_k_user_data, il);
+        };
+    }
 
     // Initialize backend samplers here so they are part of the sampling graph
     // before the reserve passes run later in this function. This avoids a later
@@ -1012,6 +1020,46 @@ void llama_context::set_n_threads(int32_t n_threads, int32_t n_threads_batch) {
 
     cparams.n_threads       = n_threads;
     cparams.n_threads_batch = n_threads_batch;
+}
+
+void llama_context::set_flash_attn(bool enable) {
+    if (cparams.flash_attn != enable) {
+        cparams.flash_attn = enable;
+        cparams.auto_fa    = false;
+        sched_need_reserve = true;
+    }
+}
+
+bool llama_context::get_flash_attn() const {
+    return cparams.flash_attn;
+}
+
+void llama_context::set_entropy_calibration(bool enable) {
+    cparams.entropy_calibration = enable;
+}
+
+void llama_context::set_cparams_layer_type_cb(const std::function<ggml_type(int32_t)> & cb) {
+    cparams.layer_type_k_cb = cb;
+}
+
+void llama_context::set_prune_kv(const std::map<llama_pos, float> & importance, float keep_ratio) {
+    // Cast memory to KV cache to access prune_by_importance
+    auto * kv_cache = dynamic_cast<llama_kv_cache *>(memory.get());
+    if (!kv_cache) {
+        LLAMA_LOG_WARN("%s: memory is not a KV cache, cannot prune\n", __func__);
+        return;
+    }
+    kv_cache->prune_by_importance(importance, keep_ratio);
+}
+
+ggml_cgraph * llama_context::get_last_graph() const {
+    if (gf_res_prev) {
+        return gf_res_prev->get_gf();
+    }
+    if (gf_res_reserve) {
+        return gf_res_reserve->get_gf();
+    }
+    return nullptr;
 }
 
 void llama_context::set_abort_callback(bool (*abort_callback)(void * data), void * abort_callback_data) {
@@ -2220,6 +2268,11 @@ llm_graph_cb llama_context::graph_get_cb() const {
                     }
                 }
             }
+        }
+
+        // entropy calibration: capture kq_soft_max tensors
+        if (calibration_on_tensor) {
+            calibration_on_tensor(cur, name, il);
         }
     };
 }
@@ -3555,6 +3608,26 @@ void llama_memory_seq_keep(
     }
 
     mem->seq_keep(seq_id);
+}
+
+void llama_memory_prune_by_importance(
+        struct llama_context * ctx,
+        const llama_pos * positions,
+        const float * scores,
+        int32_t n,
+        float keep_ratio) {
+    if (!ctx || !positions || !scores || n <= 0 || keep_ratio >= 1.0f) {
+        return;
+    }
+
+    // Build importance map from arrays
+    std::map<llama_pos, float> importance;
+    for (int32_t i = 0; i < n; ++i) {
+        importance[positions[i]] = scores[i];
+    }
+
+    // Dispatch to the KV cache implementation
+    ctx->set_prune_kv(importance, keep_ratio);
 }
 
 void llama_memory_seq_add(

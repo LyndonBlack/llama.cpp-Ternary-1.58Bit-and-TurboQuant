@@ -6,6 +6,7 @@
 #include "llama-graph.h"
 #include "llama-adapter.h"
 #include "llama-impl.h"
+#include "llama-entropy.h"
 
 #include "ggml-cpp.h"
 #include "ggml-opt.h"
@@ -105,6 +106,14 @@ struct llama_context {
     void set_n_threads(int32_t n_threads, int32_t n_threads_batch);
 
     void set_abort_callback(bool (*abort_callback)(void * data), void * abort_callback_data);
+
+    // Entropy calibration support
+    void set_flash_attn(bool enable);
+    bool get_flash_attn() const;
+    void set_entropy_calibration(bool enable);
+    void set_prune_kv(const std::map<llama_pos, float> & importance, float keep_ratio);
+    void set_cparams_layer_type_cb(const std::function<ggml_type(int32_t)> & cb);
+    ggml_cgraph * get_last_graph() const;
 
     void set_embeddings (bool value);
     void set_causal_attn(bool value);
@@ -343,6 +352,21 @@ private:
 
     // host buffer for the model output (logits and embeddings)
     ggml_backend_buffer_ptr buf_output;
+
+public:
+    // entropy calibration (public for access by llama-entropy.cpp)
+    mutable bool                                              calibration_mode = false;
+    mutable std::function<void(ggml_tensor *, const char *, int)> calibration_on_tensor;
+    mutable std::vector<llama_entropy_head>                   calibration_entropy;
+    mutable int32_t                                            calibration_n_layers = 0;
+    mutable int32_t                                            calibration_n_heads  = 0;
+    mutable int32_t                                            calibration_n_ctx    = 0;
+    mutable int32_t                                            calibration_n_captured = 0;
+    mutable std::vector<float>                                 calibration_work;
+    mutable std::vector<ggml_tensor *>                         calibration_captured;
+    mutable ggml_backend_buffer_ptr                             buf_calib;
+
+private:
 
     // keep copies of the per-sequence memory on the device
     std::map<llama_seq_id, llama_memory_buffers> mem_storage;

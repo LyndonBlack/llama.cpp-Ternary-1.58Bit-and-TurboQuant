@@ -106,7 +106,8 @@ public:
                      uint32_t   n_swa,
                llama_swa_type   swa_type,
         const layer_filter_cb & filter,
-        const  layer_reuse_cb & reuse);
+        const  layer_reuse_cb & reuse,
+        const std::function<ggml_type(int32_t il)> & layer_type_k_cb = nullptr);
 
     ~llama_kv_cache() = default;
 
@@ -184,6 +185,11 @@ public:
     // return empty slot_info on failure
     slot_info find_slot(const llama_ubatch & ubatch, bool cont) const;
 
+    // entropy-guided eviction: keep only the top-K cells by importance in each stream
+    // importance[pos] = score for position pos (1.0 = most important, 0.0 = least)
+    // cells not in the map or with scores below the threshold are removed
+    void prune_by_importance(const std::map<llama_pos, float> & importance, float keep_ratio);
+
     // emplace the ubatch context into slot: [sinfo.idxs[0...ubatch.n_tokens - 1]]
     void apply_ubatch(const slot_info & sinfo, const llama_ubatch & ubatch);
 
@@ -217,11 +223,18 @@ private:
         // note: can be different from the layer index in the KV cache
         uint32_t il;
 
-        ggml_tensor * k;
-        ggml_tensor * v;
+        ggml_tensor * k;        // primary K cache (q8_0 or whichever main type)
+        ggml_tensor * v;        // V cache
+
+        ggml_tensor * k_extra;  // optional secondary K cache (turbo4 for low-entropy heads)
+
+        // Per-head quantization types (one per KV head)
+        // Used for mixed-precision: different heads stored at different precisions
+        std::vector<ggml_type> head_k_types;
 
         std::vector<ggml_tensor *> k_stream;
         std::vector<ggml_tensor *> v_stream;
+        std::vector<ggml_tensor *> k_extra_stream;
     };
 
     bool v_trans = true;  // the value tensor is transposed

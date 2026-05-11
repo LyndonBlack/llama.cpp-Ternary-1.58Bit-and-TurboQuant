@@ -13,6 +13,7 @@
 #include <string_view>
 #include <vector>
 #include <map>
+#include <functional>
 
 #if defined(_WIN32) && !defined(_WIN32_WINNT)
 #define _WIN32_WINNT 0x0A00
@@ -483,6 +484,9 @@ struct common_params {
     std::string input_prefix         = ""; // string to prefix user inputs with                             // NOLINT
     std::string input_suffix         = ""; // string to suffix user inputs with                             // NOLINT
     std::string logits_file          = ""; // file for saving *all* logits                                  // NOLINT
+    std::string entropy_profile_path = ""; // path to entropy profile JSON for guided KV cache eviction     // NOLINT
+    float       entropy_prune_ratio  = 0.75f; // fraction of KV cells to keep after entropy-guided pruning
+    std::function<ggml_type(int32_t)> entropy_layer_k_cb; // per-layer K type override (set by server from profile)
 
     // llama-debug specific options
     std::string logits_output_dir = "data"; // directory for saving logits output files                     // NOLINT

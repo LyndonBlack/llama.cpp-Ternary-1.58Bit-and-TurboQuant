@@ -4086,6 +4086,23 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_examples({LLAMA_EXAMPLE_SERVER, LLAMA_EXAMPLE_CLI}));
 
+    // Entropy-guided KV cache pruning
+    add_opt(common_arg(
+        {"--entropy-profile"}, "FNAME",
+        "path to entropy profile JSON for per-head KV cache eviction",
+        [](common_params & params, const std::string & value) {
+            params.entropy_profile_path = value;
+        }
+    ).set_examples({LLAMA_EXAMPLE_SERVER}));
+
+    add_opt(common_arg(
+        {"--entropy-prune-ratio"}, "FLOAT",
+        "KV cache compression ratio from entropy profile (2.0 = 2x smaller = 50% memory, default: 2.0)",
+        [](common_params & params, const std::string & value) {
+            params.entropy_prune_ratio = std::stof(value);
+        }
+    ).set_examples({LLAMA_EXAMPLE_SERVER}));
+
     return ctx_arg;
 }
 

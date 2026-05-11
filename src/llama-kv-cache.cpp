@@ -90,7 +90,8 @@ llama_kv_cache::llama_kv_cache(
                  uint32_t   n_swa,
            llama_swa_type   swa_type,
     const layer_filter_cb & filter,
-    const  layer_reuse_cb & reuse) :
+    const  layer_reuse_cb & reuse,
+    const std::function<ggml_type(int32_t il)> & layer_type_k_cb) :
     model(model), hparams(model.hparams), v_trans(v_trans),
     n_seq_max(n_seq_max), n_stream(unified ? 1 : n_seq_max), n_pad(n_pad), n_swa(n_swa), swa_type(swa_type) {
 
@@ -225,7 +226,19 @@ llama_kv_cache::llama_kv_cache(
         ggml_type layer_type_k = type_k;
         ggml_type layer_type_v = type_v;
 
-        if (turbo_k_adaptive_q8 && (il < (uint32_t) turbo_k_q8_first_n || il + (uint32_t) turbo_k_q8_last_n >= hparams.n_layer)) {
+        // Entropy profile: per-layer K type override
+        // Check the callback (passed through cparams or server config)
+        if (layer_type_k_cb) {
+            auto override_type = layer_type_k_cb(il);
+            // GGML_TYPE_COUNT means "use default"
+            if (override_type >= 0 && override_type < GGML_TYPE_COUNT) {
+                layer_type_k = override_type;
+                if (layer_type_k != type_k) {
+                    LLAMA_LOG_INFO("%s: layer %3d: K type overridden to %s (was %s)\n",
+                            __func__, il, ggml_type_name(layer_type_k), ggml_type_name(type_k));
+                }
+            }
+        } else if (turbo_k_adaptive_q8 && (il < (uint32_t) turbo_k_q8_first_n || il + (uint32_t) turbo_k_q8_last_n >= hparams.n_layer)) {
             layer_type_k = GGML_TYPE_Q8_0;
             LLAMA_LOG_DEBUG("%s: layer %3d: adaptive K type = q8_0\n", __func__, il);
         }
@@ -283,7 +296,7 @@ llama_kv_cache::llama_kv_cache(
 
         map_layer_ids[il] = layers.size();
 
-        layers.push_back({ il, k, v, k_stream, v_stream, });
+        layers.push_back({ il, k, v, nullptr, {}, k_stream, v_stream, {} });
     }
 
     if (reuse) {
@@ -1148,6 +1161,73 @@ void llama_kv_cache::apply_ubatch(const slot_info & sinfo, const llama_ubatch & 
         auto & head = v_heads[sinfo.strm[s]];
 
         head = sinfo.idxs[s].back() + 1;
+    }
+}
+
+void llama_kv_cache::prune_by_importance(const std::map<llama_pos, float> & importance, float keep_ratio) {
+    keep_ratio = std::max(0.0f, std::min(1.0f, keep_ratio));
+
+    if (importance.empty() || keep_ratio >= 1.0f) {
+        return;
+    }
+
+    // Process each stream independently
+    for (uint32_t strm = 0; strm < n_stream; ++strm) {
+        auto & cells = v_cells[strm];
+        const uint32_t kv_size = cells.size();
+
+        // Collect non-empty cells with their positions
+        struct CellScore {
+            uint32_t  idx;
+            llama_pos pos;
+            float     score;
+        };
+        std::vector<CellScore> scored;
+        scored.reserve(kv_size);
+
+        for (uint32_t i = 0; i < kv_size; ++i) {
+            if (cells.is_empty(i)) continue;
+            const llama_pos pos = cells.pos_get(i);
+            auto it = importance.find(pos);
+            if (it == importance.end()) continue;
+            scored.push_back({i, pos, it->second});
+        }
+
+        if (scored.empty()) continue;
+
+        // Sort by score ascending (lowest importance first — those get evicted)
+        std::sort(scored.begin(), scored.end(),
+            [](const CellScore & a, const CellScore & b) {
+                return a.score < b.score;
+            });
+
+        // Determine how many to keep
+        const size_t n_keep = std::max<size_t>(1, scored.size() * keep_ratio);
+        const size_t n_prune = scored.size() - n_keep;
+
+        if (n_prune == 0) continue;
+
+        LLAMA_LOG_DEBUG("%s: pruning %zu of %zu cells by importance in stream %u (keep_ratio=%.2f)\n",
+                __func__, n_prune, scored.size(), strm, keep_ratio);
+
+        // Track which positions are removed so we can restore sequence contiguity
+        std::vector<llama_pos> removed_positions;
+        removed_positions.reserve(n_prune);
+
+        // Remove the lowest-importance cells
+        for (size_t pi = 0; pi < n_prune; ++pi) {
+            const uint32_t idx = scored[pi].idx;
+            const llama_pos pos = scored[pi].pos;
+            removed_positions.push_back(pos);
+            cells.rm(idx);
+        }
+
+        // Re-establish sequence contiguity: after removing middle cells,
+        // ensure the sequence's position range is still valid by updating
+        // seq_pos tracking. The sequence's positions are now non-contiguous,
+        // but the llama_batch machinery handles this via seq_rm calls when
+        // positions advance past removed cells.
+        // The key invariant: positions not yet evicted are still present.
     }
 }
 

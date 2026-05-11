@@ -3,6 +3,7 @@
 #include "llama.h"
 
 #include <cstdint>
+#include <functional>
 
 #define LLAMA_MAX_SEQ 256
 
@@ -28,6 +29,8 @@ struct llama_cparams {
 
     bool embeddings;
     bool causal_attn;
+    bool entropy_calibration = false;
+    std::function<ggml_type(int32_t il)> layer_type_k_cb;
     bool offload_kqv;
     bool flash_attn;
     bool auto_fa;

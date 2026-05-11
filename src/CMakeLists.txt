@@ -11,6 +11,7 @@ file(GLOB LLAMA_MODELS_SOURCES "models/*.cpp")
 add_library(llama
             ../include/llama.h
             llama.cpp
+            llama-entropy.cpp
             llama-adapter.cpp
             llama-arch.cpp
             llama-batch.cpp

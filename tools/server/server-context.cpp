@@ -9,7 +9,10 @@
 #include "build-info.h"
 #include "common.h"
 #include "llama.h"
+#include "llama-entropy.h"
 #include "log.h"
+
+#include <vector>
 #include "sampling.h"
 #include "speculative.h"
 #include "mtmd.h"
@@ -756,6 +759,52 @@ private:
         SRV_INF("loading model '%s'\n", params.model.path.c_str());
 
         params_base = params;
+
+        // Entropy-guided KV cache optimization: use the entropy profile to set
+        // per-layer K cache types (mixed precision) and reduce context size
+        if (!params_base.entropy_profile_path.empty()) {
+            auto ep_ptr = std::make_shared<llama_entropy_profile>();
+            if (ep_ptr->load(params_base.entropy_profile_path) && ep_ptr->mean_entropy > 0.0f && !ep_ptr->heads.empty()) {
+                // Compute per-layer mean entropy for the mixed-precision callback
+                std::vector<double> layer_mean_entropy(ep_ptr->n_layers, 0.0);
+                std::vector<int> layer_count(ep_ptr->n_layers, 0);
+                for (const auto & h : ep_ptr->heads) {
+                    if (h.layer >= 0 && h.layer < ep_ptr->n_layers) {
+                        layer_mean_entropy[h.layer] += h.entropy;
+                        layer_count[h.layer]++;
+                    }
+                }
+                for (int i = 0; i < ep_ptr->n_layers; ++i) {
+                    if (layer_count[i] > 0) layer_mean_entropy[i] /= layer_count[i];
+                }
+
+                // Find median layer entropy to use as split threshold
+                std::vector<double> sorted = layer_mean_entropy;
+                std::sort(sorted.begin(), sorted.end());
+                const double median = sorted[sorted.size() / 2];
+
+                // Create per-layer K type callback
+                const float cr = std::max(1.0f, params_base.entropy_prune_ratio);
+                params_base.entropy_layer_k_cb = [lme = std::move(layer_mean_entropy),
+                                                   med = median,
+                                                   cr](int32_t il) -> ggml_type {
+                    if (il < 0 || il >= (int32_t)lme.size()) return GGML_TYPE_COUNT;
+                    // Layers with entropy below median get turbo4, above get q8
+                    // Higher compression ratio = more aggressive
+                    if (lme[il] < med * (cr > 2.0f ? 1.3 : 1.0)) {
+                        return cr >= 3.0f ? GGML_TYPE_TURBO2_0 : GGML_TYPE_TURBO4_0;
+                    }
+                    return GGML_TYPE_Q8_0;
+                };
+
+                SRV_INF("entropy profile: %d layers, median=%.3f, low layers get turbo4\n",
+                        ep_ptr->n_layers, median);
+
+                // Path B only: keep full requested context, save memory via per-layer mixed precision
+                // Context size reduction (Path A) is removed — it was confusing (reported context
+                // didn't match requested). If you want both, pass a smaller --ctx-size explicitly.
+            }
+        }
 
         llama_init = common_init_from_params(params_base);
 
@@ -2877,6 +2926,59 @@ private:
 
                         slot.copy_state_to(*child);
                         child->state = SLOT_STATE_DONE_PROMPT;
+                    }
+                }
+            }
+
+            // Entropy-guided KV cache pruning after prompt processing
+            {
+                static std::unique_ptr<llama_entropy_profile> s_entropy_profile;
+                static bool s_entropy_loaded = false;
+                if (!s_entropy_loaded && !params_base.entropy_profile_path.empty()) {
+                    s_entropy_profile = std::make_unique<llama_entropy_profile>();
+                    if (s_entropy_profile->load(params_base.entropy_profile_path)) {
+                        SRV_INF("entropy profile loaded: %zu heads, mean=%.3f\n",
+                                s_entropy_profile->heads.size(), s_entropy_profile->mean_entropy);
+                    } else {
+                        SRV_WRN("failed to load entropy profile: %s\n", params_base.entropy_profile_path.c_str());
+                        s_entropy_profile.reset();
+                    }
+                    s_entropy_loaded = true;
+                }
+
+                for (auto & slot : slots) {
+                    if (slot.state == SLOT_STATE_DONE_PROMPT && s_entropy_profile) {
+                        const float keep_ratio = params_base.entropy_prune_ratio;
+                        if (keep_ratio < 1.0f) {
+                            SRV_INF("slot %d: pruning KV cache (keep %.0f%%)\n", slot.id, keep_ratio * 100.0f);
+
+                            // Build per-position importance arrays
+                            // Attention sinks (first tokens) get highest importance
+                            // Recent tokens (near end) get high importance too
+                            // Middle tokens get lower importance
+                            const auto n_pos = slot.prompt.n_tokens();
+                            const int32_t sink_n = std::min<int32_t>(256, n_pos / 4);
+                            std::vector<llama_pos> positions;
+                            std::vector<float> scores;
+                            positions.reserve(n_pos);
+                            scores.reserve(n_pos);
+
+                            for (int32_t p = 0; p < n_pos; ++p) {
+                                positions.push_back(p);
+                                // Attention sink: first sink_n tokens get high importance
+                                if (p < sink_n) {
+                                    scores.push_back(1.0f - (float)p / (float)sink_n * 0.3f);
+                                } else {
+                                    // Recent tokens get higher scores (preserves end of prompt)
+                                    float recency = (float)(p - sink_n) / (float)std::max(n_pos - sink_n, 1);
+                                    // Recent = high score (0.7 to 1.0), old = low (0.0 to 0.2)
+                                    scores.push_back(recency * 0.3f + 0.1f);
+                                }
+                            }
+
+                            llama_memory_prune_by_importance(ctx,
+                                positions.data(), scores.data(), (int32_t)positions.size(), keep_ratio);
+                        }
                     }
                 }
             }
