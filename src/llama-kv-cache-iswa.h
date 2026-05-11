@@ -26,7 +26,8 @@ public:
                      uint32_t   n_ubatch,
                      uint32_t   n_pad,
         const layer_filter_cb & filter,
-        const  layer_reuse_cb & reuse);
+        const  layer_reuse_cb & reuse,
+        const std::function<ggml_type(int32_t il)> & layer_type_k_cb = {});
 
     ~llama_kv_cache_iswa() = default;
 

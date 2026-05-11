@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Task Manager</title>
+  <style>
+    body {
+      background-color: #f0f0f0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    #taskCounter {
+      font-size: 24px;
+      margin-bottom: 20px;
+    }
+
+    ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 20px auto;
+      width: 80%;
+      max-width: 600px;
+    }
+
+    li {
+      background-color: #fff;
+      padding: 10px;
+      margin: 5px 0;
+      border-radius: 5px;
+      display: inline-block;
+      position: relative;
+    }
+
+    .completed {
+      text-decoration: line-through;
+      color: gray;
+    }
+
+    .taskInput {
+      margin-bottom: 10px;
+    }
+
+    button {
+      padding: 10px 15px;
+      font-size: 16px;
+    }
+
+    .taskButton {
+      background-color: #e74c3c;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    .taskButton:hover {
+      background-color: #d35400;
+    }
+
+    .taskButton:active {
+      background-color: #c0392b;
+    }
+
+    .taskButton.x {
+      background-color: #2ecc71;
+      color: white;
+    }
+
+    .taskButton.x:hover {
+      background-color: #27ae60;
+    }
+
+    .taskButton.x:active {
+      background-color: #228b22;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="taskCounter">Total: 0</div>
+
+  <h1>Task Manager</h1>
+
+  <div class="taskInput">
+    <input type="text" id="taskInput" placeholder="Enter a new task">
+    <button onclick="addTask()">Add Task</button>
+  </div>
+
+  <ul id="taskList"></ul>
+
+  <button onclick="clearAll()">Clear All</button>
+
+  <script>
+    const taskList = document.getElementById('taskList');
+    const taskInput = document.getElementById('taskInput');
+    const taskCounter = document.getElementById('taskCounter');
+
+    // Load tasks from localStorage
+    function loadTasks() {
+      const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+      taskList.innerHTML = '';
+      storedTasks.forEach((task, index) => {
+        const li = document.createElement('li');
+        li.textContent = task;
+        li.dataset.index = index;
+        li.addEventListener('click', () => toggleTask(index));
+        li.appendChild(document.createElement('button'));
+        li.querySelector('button').textContent = '✕';
+        li.querySelector('button').addEventListener('click', () => deleteTask(index));
+        taskList.appendChild(li);
+      });
+      updateCounter();
+    }
+
+    // Add a new task
+    function addTask() {
+      const taskText = taskInput.value.trim();
+      if (taskText !== '') {
+        const task = {
+          text: taskText,
+          completed: false
+        };
+        const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+        storedTasks.push(task);
+        localStorage.setItem('tasks', JSON.stringify(storedTasks));
+        taskList.innerHTML += `
+          <li>
+            <span id="taskText-${task.index}">${task.text}</span>
+            <button class="taskButton" onclick="toggleTask(${task.index})">${task.completed ? '✕' : 'Add'}</button>
+          </li>
+        `;
+        taskInput.value = '';
+        updateCounter();
+      }
+    }
+
+    // Toggle task as completed
+    function toggleTask(index) {
+      const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+      const task = storedTasks[index];
+      task.completed = !task.completed;
+      storedTasks[index] = task;
+      localStorage.setItem('tasks', JSON.stringify(storedTasks));
+      updateCounter();
+      renderTask(index);
+    }
+
+    // Delete a task
+    function deleteTask(index) {
+      const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+      storedTasks.splice(index, 1);
+      localStorage.setItem('tasks', JSON.stringify(storedTasks));
+      updateCounter();
+      renderTask(index);
+    }
+
+    // Render a specific task
+    function renderTask(index) {
+      const li = taskList.children[index];
+      const taskText = li.querySelector('span');
+      const taskButton = li.querySelector('button');
+      const task = JSON.parse(localStorage.getItem('tasks')) || [];
+      if (task[index]) {
+        taskText.textContent = task[index].text;
+        taskButton.textContent = task[index].completed ? '✕' : 'Add';
+        taskButton.classList.remove('taskButton');
+        taskButton.classList.add('taskButton.x');
+      } else {
+        taskText.textContent = 'New Task';
+        taskButton.textContent = 'Add';
+        taskButton.classList.remove('taskButton.x');
+        taskButton.classList.add('taskButton');
+      }
+    }
+
+    // Update the counter
+    function updateCounter() {
+      const storedTasks = JSON.parse(localStorage.getItem('tasks')) || [];
+      const total = storedTasks.length;
+      const active = storedTasks.filter(task => !task.completed).length;
+      const completed = storedTasks.filter(task => task.completed).length;
+      taskCounter.textContent = `Total: ${total}`;
+      taskCounter.innerHTML = `Total: ${total}`;
+      taskCounter.style.fontSize = '24px';
+      taskCounter.style.marginBottom = '20px';
+
+      const counterText = document.createElement('div');
+      counterText.textContent = `Active: ${active} | Completed: ${completed} | Total: ${total}`;
+      counterText.style.fontSize = '20px';
+      counterText.style.marginBottom = '20px';
+      counterText.style.fontWeight = 'bold';
+      counterText.style.color = '#333';
+      taskCounter.appendChild(counterText);
+    }
+
+    // Initialize the page
+    window.onload = loadTasks;
+  </script>
+
+</body>
+</html>

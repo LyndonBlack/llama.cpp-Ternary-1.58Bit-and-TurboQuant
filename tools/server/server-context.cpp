@@ -783,22 +783,40 @@ private:
                 std::sort(sorted.begin(), sorted.end());
                 const double median = sorted[sorted.size() / 2];
 
-                // Create per-layer K type callback
+                // Parse the low-entropy K type from the CLI flag
+                ggml_type low_k_type = GGML_TYPE_TURBO4_0; // default
+                const std::string & kt = params_base.entropy_low_k_type;
+                if (kt == "turbo2_0" || kt == "turbo2")       low_k_type = GGML_TYPE_TURBO2_0;
+                else if (kt == "turbo4_0" || kt == "turbo4")  low_k_type = GGML_TYPE_TURBO4_0;
+                else if (kt == "turbo6_0" || kt == "turbo6")  low_k_type = GGML_TYPE_TURBO6_0;
+                else if (kt == "q8_0" || kt == "q8")         low_k_type = GGML_TYPE_Q8_0;
+                else SRV_WRN("unknown --entropy-low-k-type '%s', using turbo4_0\n", kt.c_str());
+
+                // Smooth threshold factor: continuous function of prune ratio
+                // cr=1.0 -> 0.8, cr=1.5 -> 0.95, cr=2.0 -> 1.1, cr=3.0 -> 1.4
                 const float cr = std::max(1.0f, params_base.entropy_prune_ratio);
+                const double threshold_factor = 0.8 + (cr - 1.0) * 0.3;
+                const double threshold = median * threshold_factor;
+
+                // Count low-entropy layers before the callback captures the vector
+                int n_low = 0;
+                for (auto e : layer_mean_entropy) if (e < threshold) n_low++;
+
+                // Create per-layer K type callback
                 params_base.entropy_layer_k_cb = [lme = std::move(layer_mean_entropy),
-                                                   med = median,
-                                                   cr](int32_t il) -> ggml_type {
+                                                   thr = threshold,
+                                                   low = low_k_type](int32_t il) -> ggml_type {
                     if (il < 0 || il >= (int32_t)lme.size()) return GGML_TYPE_COUNT;
-                    // Layers with entropy below median get turbo4, above get q8
-                    // Higher compression ratio = more aggressive
-                    if (lme[il] < med * (cr > 2.0f ? 1.3 : 1.0)) {
-                        return cr >= 3.0f ? GGML_TYPE_TURBO2_0 : GGML_TYPE_TURBO4_0;
+                    if (lme[il] < thr) {
+                        return low;
                     }
                     return GGML_TYPE_Q8_0;
                 };
 
-                SRV_INF("entropy profile: %d layers, median=%.3f, low layers get turbo4\n",
-                        ep_ptr->n_layers, median);
+                SRV_INF("entropy profile: %d layers, median=%.3f, thr=%.3f (cr=%.1f), low layers get %s (%d/%d = %.0f%%)\n",
+                        ep_ptr->n_layers, median, threshold, cr,
+                        ggml_type_name(low_k_type), n_low, ep_ptr->n_layers,
+                        100.0 * n_low / ep_ptr->n_layers);
 
                 // Path B only: keep full requested context, save memory via per-layer mixed precision
                 // Context size reduction (Path A) is removed — it was confusing (reported context

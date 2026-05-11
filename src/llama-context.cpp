@@ -286,6 +286,7 @@ llama_context::llama_context(
             /*.type_k   =*/ params.type_k,
             /*.type_v   =*/ params.type_v,
             /*.swa_full =*/ params.swa_full,
+            /*.layer_type_k_cb =*/ cparams.layer_type_k_cb,
         };
 
         memory.reset(model.create_memory(params_mem, cparams));

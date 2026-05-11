@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bubble Sort Visualizer</title>
+<style>
+  /* ============================================
+     GLOBAL RESET & DARK MODE BASE STYLES
+     ============================================ */
+  *,
+  *::before,
+  *::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #0d1117;
+    color: #c9d1d9;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    user-select: none;
+  }
+
+  /* ============================================
+     PAGE HEADER
+     ============================================ */
+  h1 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, #58a6ff, #bc8cff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    font-size: 0.9rem;
+    color: #8b949e;
+    margin-bottom: 24px;
+  }
+
+  /* ============================================
+     CONTROL PANEL
+     ============================================ */
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 20px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 16px 24px;
+  }
+
+  /* Shared button style */
+  button {
+    padding: 10px 22px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: transform 0.12s, box-shadow 0.2s, background-color 0.2s;
+  }
+
+  button:active {
+    transform: scale(0.96);
+  }
+
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  #startBtn {
+    background: linear-gradient(135deg, #238636, #2ea043);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(46, 160, 67, 0.3);
+  }
+
+  #startBtn:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(46, 160, 67, 0.45);
+  }
+
+  #resetBtn {
+    background: linear-gradient(135deg, #da3633, #f85149);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(248, 81, 73, 0.3);
+  }
+
+  #resetBtn:hover:not(:disabled) {
+    box-shadow: 0 4px 16px rgba(248, 81, 73, 0.45);
+  }
+
+  /* Speed slider group */
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .slider-group label {
+    font-size: 0.85rem;
+    color: #8b949e;
+    white-space: nowrap;
+  }
+
+  #speedSlider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 120px;
+    height: 6px;
+    border-radius: 3px;
+    background: #30363d;
+    outline: none;
+  }
+
+  #speedSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #58a6ff;
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(88, 166, 255, 0.4);
+  }
+
+  #speedSlider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #58a6ff;
+    cursor: pointer;
+    border: none;
+  }
+
+  #speedValue {
+    font-size: 0.8rem;
+    color: #58a6ff;
+    font-weight: 600;
+    min-width: 48px;
+  }
+
+  /* ============================================
+     LIVE STATS BAR
+     ============================================ */
+  .stats {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .stat-item {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
+    padding: 10px 20px;
+    text-align: center;
+    min-width: 140px;
+  }
+
+  .stat-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #8b949e;
+    margin-bottom: 4px;
+  }
+
+  .stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #f0f6fc;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ============================================
+     ARRAY VISUALIZATION CONTAINER
+     ============================================ */
+  .visualizer {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 2px;
+    width: 100%;
+    max-width: 900px;
+    height: 400px;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 12px;
+    padding: 20px 12px 12px;
+    margin-bottom: 20px;
+  }
+
+  /* Individual bar styles */
+  .bar {
+    flex: 1;
+    max-width: 48px;
+    min-width: 4px;
+    border-radius: 4px 4px 0 0;
+    transition: height 0.08s ease, background-color 0.12s ease;
+    position: relative;
+  }
+
+  /* Color state: default (unsorted) */
+  .bar.default {
+    background: linear-gradient(to top, #58a6ff, #79c0ff);
+  }
+
+  /* Color state: currently being compared */
+  .bar.comparing {
+    background: linear-gradient(to top, #f0883e, #f78166);
+    box-shadow: 0 0 12px rgba(247, 129, 102, 0.5);
+  }
+
+  /* Color state: already sorted / settled */
+  .bar.sorted {
+    background: linear-gradient(to top, #3fb950, #56d364);
+    box-shadow: 0 0 8px rgba(86, 211, 100, 0.3);
+  }
+
+  /* Value label shown on hover / top */
+  .bar::after {
+    content: attr(data-value);
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    color: #8b949e;
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+    font-weight: 600;
+  }
+
+  .bar:hover::after {
+    opacity: 1;
+  }
+
+  /* ============================================
+     LEGEND
+     ============================================ */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: #8b949e;
+  }
+
+  .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+  }
+
+  .legend-swatch.swatch-default {
+    background: linear-gradient(135deg, #58a6ff, #79c0ff);
+  }
+
+  .legend-swatch.swatch-comparing {
+    background: linear-gradient(135deg, #f0883e, #f78166);
+  }
+
+  .legend-swatch.swatch-sorted {
+    background: linear-gradient(135deg, #3fb950, #56d364);
+  }
+
+  /* ============================================
+     ARRAY SIZE CONTROLS
+     ============================================ */
+  .size-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .size-group label {
+    font-size: 0.85rem;
+    color: #8b949e;
+    white-space: nowrap;
+  }
+
+  #sizeSlider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100px;
+    height: 6px;
+    border-radius: 3px;
+    background: #30363d;
+    outline: none;
+  }
+
+  #sizeSlider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #bc8cff;
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(188, 140, 255, 0.4);
+  }
+
+  #sizeSlider::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #bc8cff;
+    cursor: pointer;
+    border: none;
+  }
+
+  #sizeValue {
+    font-size: 0.8rem;
+    color: #bc8cff;
+    font-weight: 600;
+    min-width: 28px;
+  }
+</style>
+</head>
+<body>
+
+  <!-- Page Header -->
+  <h1>Bubble Sort Visualizer</h1>
+  <p class="subtitle">Watch how Bubble Sort progressively orders your array</p>
+
+  <!-- Controls: buttons, speed, size -->
+  <div class="controls">
+    <button id="startBtn" onclick="startSort()">▶ Start Sort</button>
+    <button id="resetBtn" onclick="resetArray()">↻ Reset</button>
+
+    <div class="slider-group">
+      <label for="speedSlider">Speed:</label>
+      <input type="range" id="speedSlider" min="1" max="100" value="50">
+      <span id="speedValue">50ms</span>
+    </div>
+
+    <div class="size-group">
+      <label for="sizeSlider">Size:</label>
+      <input type="range" id="sizeSlider" min="5" max="80" value="30">
+      <span id="sizeValue">30</span>
+    </div>
+  </div>
+
+  <!-- Live Statistics -->
+  <div class="stats">
+    <div class="stat-item">
+      <div class="stat-label">Comparisons</div>
+      <div class="stat-value" id="comparisonCount">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Swaps</div>
+      <div class="stat-value" id="swapCount">0</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-label">Sorted</div>
+      <div class="stat-value" id="sortedCount">0</div>
+    </div>
+  </div>
+
+  <!-- Bar Visualizer Container -->
+  <div class="visualizer" id="visualizer"></div>
+
+  <!-- Color Legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-swatch swatch-default"></div>
+      Unsorted
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch swatch-comparing"></div>
+      Comparing
+    </div>
+    <div class="legend-item">
+      <div class="legend-swatch swatch-sorted"></div>
+      Sorted
+    </div>
+  </div>
+
+  <script>
+    /* ============================================================
+       CONFIGURATION & STATE
+       ============================================================ */
+
+    // Maximum value used to normalize bar heights (100%)
+    const MAX_VALUE = 100;
+
+    // The numeric array representing our data
+    let array = [];
+
+    // Counters for live stats
+    let comparisons = 0;
+    let swaps = 0;
+    let sortedCount = 0;
+
+    // Whether the sort animation is currently running
+    let isRunning = false;
+
+    // Abort controller to cancel async sort if user presses Reset
+    let abortSort = false;
+
+    // DOM references
+    const visualizer = document.getElementById('visualizer');
+    const startBtn = document.getElementById('startBtn');
+    const comparisonCountEl = document.getElementById('comparisonCount');
+    const swapCountEl = document.getElementById('swapCount');
+    const sortedCountEl = document.getElementById('sortedCount');
+    const speedSlider = document.getElementById('speedSlider');
+    const speedValueEl = document.getElementById('speedValue');
+    const sizeSlider = document.getElementById('sizeSlider');
+    const sizeValueEl = document.getElementById('sizeValue');
+
+    /* ============================================================
+       UTILITY: Get the current delay (in ms) from the speed slider.
+       Higher slider value = faster (smaller delay).
+       ============================================================ */
+    function getDelay() {
+      const val = parseInt(speedSlider.value, 10);
+      // Map slider 1–100 to delay 500ms–5ms (non-linear for better feel)
+      const delay = Math.round(505 - (val * 5));
+      speedValueEl.textContent = delay + 'ms';
+      return delay;
+    }
+
+    /* ============================================================
+       UTILITY: Sleep / wait function that also checks for abort.
+       This lets the sort be cancelled mid-flight.
+       ============================================================ */
+    function sleep(ms) {
+      return new Promise((resolve) => {
+        if (ms <= 0) { resolve(); return; }
+        const timeout = setTimeout(resolve, ms);
+        // If abort is triggered, cancel and resolve immediately
+        const checkAbort = setInterval(() => {
+          if (abortSort) {
+            clearTimeout(timeout);
+            clearInterval(checkAbort);
+            resolve();
+          }
+        }, 30);
+      });
+    }
+
+    /* ============================================================
+       ARRAY GENERATION
+       Creates a random array of `count` integers (1–MAX_VALUE).
+       ============================================================ */
+    function generateArray(count) {
+      const arr = [];
+      for (let i = 0; i < count; i++) {
+        arr.push(Math.floor(Math.random() * (MAX_VALUE - 1)) + 1);
+      }
+      return arr;
+    }
+
+    /* ============================================================
+       RENDERING: Build the visualizer from the array.
+       Each element is a div whose height is proportional to its value.
+       ============================================================ */
+    function renderArray() {
+      visualizer.innerHTML = ''; // clear previous bars
+
+      array.forEach((value) => {
+        const bar = document.createElement('div');
+        bar.classList.add('bar', 'default');
+        bar.style.height = ((value / MAX_VALUE) * 100) + '%';
+        bar.setAttribute('data-value', value);
+        bar.setAttribute('data-index', array.indexOf(value));
+        visualizer.appendChild(bar);
+      });
+    }
+
+    /* ============================================================
+       RENDERING: Update a single bar's height (after a swap).
+       index  – the bar's position in the array
+       value  – the new value to display
+       cls    – the CSS class for color state
+       ============================================================ */
+    function updateBar(index, value, cls) {
+      const bars = visualizer.querySelectorAll('.bar');
+      const bar = bars[index];
+      if (!bar) return;
+      bar.style.height = ((value / MAX_VALUE) * 100) + '%';
+      bar.setAttribute('data-value', value);
+      bar.className = 'bar ' + cls;
+    }
+
+    /* ============================================================
+       STATISTICS: Update the live stat displays.
+       ============================================================ */
+    function updateStats() {
+      comparisonCountEl.textContent = comparisons;
+      swapCountEl.textContent = swaps;
+      sortedCountEl.textContent = sortedCount;
+    }
+
+    /* ============================================================
+       SORT: The core Bubble Sort implementation.
+       Operates asynchronously so the UI can repaint between steps.
+       ============================================================ */
+    async function bubbleSort() {
+      const n = array.length;
+      // `sortedEnd` tracks how many elements from the right are already in place
+      let sortedEnd = 0;
+
+      // Outer loop: each pass bubbles the next largest element to its position
+      for (let i = 0; i < n - 1; i++) {
+        // Inner loop: compare adjacent elements up to the unsorted portion
+        for (let j = 0; j < n - 1 - i; j++) {
+          // Check if user requested a reset / abort
+          if (abortSort) return;
+
+          // Increment comparison counter
+          comparisons++;
+
+          // Highlight the two bars being compared (orange)
+          updateBar(j, array[j], 'comparing');
+          updateBar(j + 1, array[j + 1], 'comparing');
+          updateStats();
+
+          // Small delay so the user can see the comparison
+          await sleep(getDelay());
+
+          // Compare and swap if needed
+          if (array[j] > array[j + 1]) {
+            // Swap the values in the array
+            let temp = array[j];
+            array[j] = array[j + 1];
+            array[j + 1] = temp;
+
+            swaps++;
+
+            // Update the visual bars with new values (still comparing color)
+            updateBar(j, array[j], 'comparing');
+            updateBar(j + 1, array[j + 1], 'comparing');
+            updateStats();
+
+            // Brief pause so the swap is visible
+            await sleep(getDelay());
+          }
+
+          // After comparing, revert the first bar to default (it may get compared again)
+          updateBar(j, array[j], 'default');
+        }
+
+        // The element at index (n - 1 - i) is now in its final sorted position
+        // Mark it green
+        const sortedIndex = n - 1 - i;
+        updateBar(sortedIndex, array[sortedIndex], 'sorted');
+        sortedCount++;
+        updateStats();
+
+        // Brief pause between passes
+        await sleep(getDelay());
+      }
+
+      // Mark the very first element (index 0) as sorted too — it must be sorted now
+      updateBar(0, array[0], 'sorted');
+      sortedCount++;
+      updateStats();
+
+      // Sort complete!
+      isRunning = false;
+      startBtn.textContent = '▶ Start Sort';
+      startBtn.disabled = false;
+    }
+
+    /* ============================================================
+       CONTROLS: Start the sort animation.
+       ============================================================ */
+    function startSort() {
+      if (isRunning) return;
+
+      // Reset counters before a new run
+      comparisons = 0;
+      swaps = 0;
+      sortedCount = 0;
+      abortSort = false;
+      updateStats();
+
+      isRunning = true;
+      startBtn.textContent = '⏸ Sorting...';
+      startBtn.disabled = true;
+
+      // Run the async bubble sort
+      bubbleSort();
+    }
+
+    /* ============================================================
+       CONTROLS: Reset the array with new random values.
+       Stops any running sort first.
+       ============================================================ */
+    function resetArray() {
+      // Signal the running sort (if any) to stop
+      abortSort = true;
+
+      // Brief pause to let the abort propagate, then proceed
+      setTimeout(() => {
+        // Reset state
+        isRunning = false;
+        abortSort = false;
+        comparisons = 0;
+        swaps = 0;
+        sortedCount = 0;
+
+        // Read the desired array size from the slider
+        const count = parseInt(sizeSlider.value, 10);
+        array = generateArray(count);
+
+        // Re-render
+        renderArray();
+        updateStats();
+
+        // Reset UI
+        startBtn.textContent = '▶ Start Sort';
+        startBtn.disabled = false;
+      }, 50);
+    }
+
+    /* ============================================================
+       EVENT LISTENERS: Keep stats in sync as user adjusts sliders.
+       ============================================================ */
+    speedSlider.addEventListener('input', getDelay);
+
+    sizeSlider.addEventListener('input', () => {
+      sizeValueEl.textContent = sizeSlider.value;
+    });
+
+    /* ============================================================
+       INITIALIZATION: Generate a default array and render it on load.
+       ============================================================ */
+  (function init() {
+    const initialSize = parseInt(sizeSlider.value, 10);
+    array = generateArray(initialSize);
+    renderArray();
+    updateStats();
+    getDelay(); // prime the speed display
+  })();
+  </script>
+
+</body>
+</html>
+

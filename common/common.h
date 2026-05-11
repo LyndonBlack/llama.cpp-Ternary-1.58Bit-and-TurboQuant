@@ -487,6 +487,7 @@ struct common_params {
     std::string entropy_profile_path = ""; // path to entropy profile JSON for guided KV cache eviction     // NOLINT
     float       entropy_prune_ratio  = 0.75f; // fraction of KV cells to keep after entropy-guided pruning
     std::function<ggml_type(int32_t)> entropy_layer_k_cb; // per-layer K type override (set by server from profile)
+    std::string entropy_low_k_type = "turbo4_0";    // K type for low-entropy layers (turbo2_0, turbo4_0, turbo6_0, etc.)
 
     // llama-debug specific options
     std::string logits_output_dir = "data"; // directory for saving logits output files                     // NOLINT

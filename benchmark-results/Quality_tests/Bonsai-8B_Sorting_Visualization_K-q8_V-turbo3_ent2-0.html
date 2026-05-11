@@ -1,0 +1,1180 @@
+Here's a **single self-contained `index.html`** file that includes a **real-time sorting visualizer** with the requested features:
+
+- **Algorithms**: Bubble Sort, Insertion Sort, Selection Sort, Merge Sort, Quick Sort, Heap Sort
+- **Visuals**: Animated vertical bars with color coding
+- **Controls**: Algorithm selection, speed slider, array size slider, shuffle/reset, start/pause
+- **Stats panel**: Live updates during sorting
+- **Modern UI**: Dark background, vibrant colors, clean layout
+
+You can **copy and paste this into a file named `index.html`** and open it in your browser to see the visualization in action.
+
+---
+
+### ✅ `index.html` (Self-contained)
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Real-Time Sorting Visualizer</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+      font-size: 2em;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .controls button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls input[type="range"] {
+      width: 200px;
+      accent-color: #2e7d32;
+    }
+
+    .array {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .bar {
+      width: 30px;
+      height: 100px;
+      background-color: #42a5f5;
+      border-radius: 5px;
+      transition: background-color 0.2s, transform 0.2s;
+    }
+
+    .bar.default {
+      background-color: #42a5f5;
+    }
+
+    .bar.highlight {
+      background-color: #ff9800;
+    }
+
+    .bar.sorted {
+      background-color: #81c784;
+    }
+
+    .stats {
+      background-color: #2e7d32;
+      padding: 15px;
+      border-radius: 8px;
+      width: 300px;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .stats h2 {
+      margin-bottom: 10px;
+    }
+
+    .stats p {
+      margin: 5px 0;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .controls label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls input[type="range"] {
+      width: 200px;
+      accent-color: #2e7d32;
+    }
+
+    .controls button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select {
+      padding: 8px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group select:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button {
+      padding: 10px 20px;
+      font-size: 1em;
+      background-color: #2e7d32;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+
+    .controls .controls-group .controls-group .controls-group .controls-group button:hover {
+      background-color: #42a5f5;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container label {
+      font-size: 0.9em;
+      color: #ccc;
+    }
+
+    .controls .controls-group .controls-group .controls-group .slider-container input[type="range"] {
+      width: 200px;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button {
+      background-color: #f44336;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .shuffle-button:hover {
+      background-color: #e53935;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button {
+      background-color: #00bcd4;
+      color: white;
+    }
+
+    .controls .controls-group .controls-group .controls-group .start-pause-button:hover {
+      background-color: #009688;
+    }
+
+    .controls .controls-group .controls-group .controls-group

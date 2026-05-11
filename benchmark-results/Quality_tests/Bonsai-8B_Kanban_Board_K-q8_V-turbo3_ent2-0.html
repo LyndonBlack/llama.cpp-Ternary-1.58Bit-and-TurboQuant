@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kanban Board</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+  <style>
+    /* State */
+    body {
+      margin: 0;
+      font-family: 'Inter', sans-serif;
+      background-color: #0f1117;
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    header {
+      background-color: #1a1e25;
+      padding: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #2a2e33;
+    }
+
+    #searchBar {
+      padding: 0.5rem;
+      border: none;
+      background-color: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+      border-radius: 5px;
+      font-size: 1rem;
+    }
+
+    #priorityFilter {
+      padding: 0.5rem;
+      border: none;
+      background-color: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+      border-radius: 5px;
+      font-size: 1rem;
+    }
+
+    /* Rendering */
+    .board {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding: 1rem;
+      overflow-x: auto;
+      background-color: #1a1e25;
+      border-bottom: 1px solid #2a2e33;
+    }
+
+    .column {
+      background-color: #2a2e33;
+      border: 1px solid #3a3e43;
+      border-radius: 5px;
+      padding: 1rem;
+      flex: 1;
+      min-width: 200px;
+      max-width: 300px;
+      position: relative;
+    }
+
+    .column-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      cursor: pointer;
+      font-size: 1rem;
+      color: #ffffff;
+      border-bottom: 1px solid #3a3e43;
+    }
+
+    .column-header:hover {
+      background-color: #3a3e43;
+    }
+
+    .column-header::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 20px;
+      height: 20px;
+      background-color: #ff4d4d;
+      border-radius: 50%;
+      z-index: 10;
+    }
+
+    .card {
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid #3a3e43;
+      border-radius: 5px;
+      padding: 1rem;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+      transition: all 0.3s ease;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card:hover {
+      transform: translateY(-5px);
+      opacity: 0.9;
+    }
+
+    .card.dragging {
+      opacity: 0.5;
+    }
+
+    .card.dragging::after {
+      content: '';
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 20px;
+      height: 20px;
+      background-color: #ff4d4d;
+      border-radius: 50%;
+      z-index: 10;
+    }
+
+    .card-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin: 0;
+      color: #ffffff;
+    }
+
+    .card-description {
+      margin-top: 0.5rem;
+      padding: 0.5rem;
+      background-color: rgba(255, 255, 255, 0.05);
+      border: 1px solid #3a3e43;
+      border-radius: 5px;
+      color: #cccccc;
+      display: none;
+    }
+
+    .card:hover .card-description {
+      display: block;
+    }
+
+    .card.priority-badge {
+      display: inline-block;
+      padding: 0.25rem 0.5rem;
+      border-radius: 50%;
+      font-size: 0.75rem;
+      margin-left: 0.5rem;
+      color: #ffffff;
+    }
+
+    .card.priority-badge.low {
+      background-color: #4caf50;
+    }
+
+    .card.priority-badge.medium {
+      background-color: #ffeb3b;
+    }
+
+    .card.priority-badge.high {
+      background-color: #f44336;
+    }
+
+    .card.due-date {
+      margin-top: 0.5rem;
+      font-size: 0.9rem;
+      color: #cccccc;
+    }
+
+    .card.due-date.red {
+      color: #ff4d4d;
+    }
+
+    .card.due-date.red::before {
+      content: '⚠️';
+      margin-left: 0.25rem;
+      color: #ff4d4d;
+    }
+
+    .card.delete-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background-color: #ff4d4d;
+      border: none;
+      color: #ffffff;
+      padding: 0.25rem 0.5rem;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: background-color 0.3s ease;
+    }
+
+    .card.delete-btn:hover {
+      background-color: #e53935;
+    }
+
+    .column-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem;
+      background-color: #1a1e25;
+      border-top: 1px solid #2a2e33;
+    }
+
+    .column-footer button {
+      background-color: #2a2e33;
+      border: none;
+      color: #ffffff;
+      padding: 0.25rem 0.5rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+
+    .column-footer button:hover {
+      background-color: #3a3e43;
+    }
+
+    .add-column-btn {
+      background-color: #2a2e33;
+      border: none;
+      color: #ffffff;
+      padding: 0.5rem 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+
+    .add-column-btn:hover {
+      background-color: #3a3e43;
+    }
+
+    .add-card-btn {
+      background-color: #2a2e33;
+      border: none;
+      color: #ffffff;
+      padding: 0.5rem 1rem;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+
+    .add-card-btn:hover {
+      background-color: #3a3e43;
+    }
+
+    .search-bar {
+      padding: 0.5rem;
+      border: none;
+      background-color: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+      border-radius: 5px;
+      font-size: 1rem;
+    }
+
+    .priority-filter {
+      padding: 0.5rem;
+      border: none;
+      background-color: rgba(255, 255, 255, 0.05);
+      color: #ffffff;
+      border-radius: 5px;
+      font-size: 1rem;
+    }
+
+    .priority-filter:hover {
+      background-color: #3a3e43;
+    }
+
+    /* Drag & Drop */
+    .drop-zone {
+      position: relative;
+      padding: 0.5rem;
+      background-color: #2a2e33;
+      border: 2px dashed #3a3e43;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s ease;
+    }
+
+    .drop-zone:hover {
+      background-color: #3a3e43;
+    }
+
+    .drop-zone.pulse {
+      background-color: #3a3e43;
+      border-color: #3a3e43;
+    }
+
+    .drop-zone.pulse::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.1);
+      border-radius: 5px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    .drop-zone.pulse::after {
+      opacity: 1;
+    }
+
+    .drop-zone.pulse::after {
+      animation: pulse 1s ease-in-out;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+
+    /* Statistics */
+    .stats-bar {
+      background-color: #1a1e25;
+      padding: 1rem;
+      color: #ffffff;
+      font-size: 0.9rem;
+      text-align: center;
+      position: fixed;
+      bottom: 0;
+      width: 100%;
+      border-top: 1px solid #2a2e33;
+    }
+
+    .stats-bar span {
+      margin: 0 0.5rem;
+    }
+
+    .stats-bar span.done {
+      color: #4caf50;
+    }
+
+    .stats-bar span.overdue {
+      color: #ff4d4d;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .board {
+        flex-direction: column;
+      }
+
+      .column {
+        width: 100%;
+      }
+
+      .column-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .column-header::after {
+        display: none;
+      }
+
+      .add-column-btn {
+        margin-top: 1rem;
+      }
+
+      .add-card-btn {
+        margin-top: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <input type="text" id="searchBar" placeholder="Search tasks..." />
+    <select id="priorityFilter">
+      <option value="All">All</option>
+      <option value="Low">Low</option>
+      <option value="Medium">Medium</option>
+      <option value="High">High</option>
+    </select>
+  </header>
+
+  <div class="board" id="board"></div>
+
+  <div class="stats-bar" id="statsBar">
+    <span>Total cards: <span id="totalCards">0</span></span>
+    <span>Overdue cards: <span id="overdueCards">0</span></span>
+    <span>Done cards: <span id="doneCards">0</span></span>
+    <span>Completion rate: <span id="completionRate">0%</span></span>
+  </div>
+
+  <script>
+    // State
+    let columns = [
+      { id: 'backlog', name: 'Backlog' },
+      { id: 'todo', name: 'To Do' },
+      { id: 'inProgress', name: 'In Progress' },
+      { id: 'done', name: 'Done' }
+    ];
+    let cards = [];
+
+    // Rendering
+    function renderBoard() {
+      const board = document.getElementById('board');
+      board.innerHTML = '';
+
+      // Render columns
+      columns.forEach(column => {
+        const columnDiv = document.createElement('div');
+        columnDiv.className = 'column';
+        columnDiv.id = column.id;
+        columnDiv.dataset.name = column.name;
+
+        // Render column header
+        const header = document.createElement('div');
+        header.className = 'column-header';
+        header.textContent = column.name;
+
+        // Add column header double-click to rename
+        header.addEventListener('dblclick', () => {
+          const newName = prompt('Enter new column name:', column.name);
+          if (newName && newName.trim() !== '') {
+            columns = columns.map(col => {
+              if (col.id === newName) {
+                return { id: newName, name: newName };
+              }
+              return col;
+            });
+            renderBoard();
+          }
+        });
+
+        // Add trash icon on hover
+        header.addEventListener('mouseenter', () => {
+          const trashIcon = document.createElement('div');
+          trashIcon.className = 'column-header';
+          trashIcon.textContent = '🗑️';
+          trashIcon.style.cursor = 'pointer';
+          trashIcon.style.background = '#2a2e33';
+          trashIcon.style.border = '1px solid #3a3e43';
+          trashIcon.style.borderRadius = '5px';
+          trashIcon.style.padding = '0.5rem';
+          trashIcon.style.fontSize = '0.75rem';
+          trashIcon.style.color = '#ffffff';
+          trashIcon.style.position = 'absolute';
+          trashIcon.style.top = '0';
+          trashIcon.style.right = '0';
+          trashIcon.style.zIndex = '10';
+          trashIcon.addEventListener('click', () => {
+            if (columns.length > 1) {
+              columns = columns.filter(col => col.id !== trashIcon.id);
+              renderBoard();
+            }
+          });
+          columnDiv.appendChild(trashIcon);
+        });
+
+        // Add column footer buttons
+        const footer = document.createElement('div');
+        footer.className = 'column-footer';
+
+        const addColumnBtn = document.createElement('button');
+        addColumnBtn.className = 'add-column-btn';
+        addColumnBtn.textContent = '+ Add Column';
+        addColumnBtn.addEventListener('click', () => {
+          const newColumn = {
+            id: `column-${columns.length}`,
+            name: `Column ${columns.length + 1}`
+          };
+          columns.push(newColumn);
+          renderBoard();
+        });
+
+        const addCardBtn = document.createElement('button');
+        addCardBtn.className = 'add-card-btn';
+        addCardBtn.textContent = '+ Add Card';
+        addCardBtn.addEventListener('click', () => {
+          const newCard = {
+            id: `card-${cards.length}`,
+            title: prompt('Enter task title:', 'New Task'),
+            description: prompt('Enter description (optional):', ''),
+            priority: 'Medium',
+            dueDate: new Date()
+          };
+          if (newCard.title) {
+            cards.push(newCard);
+            renderBoard();
+          }
+        });
+
+        footer.appendChild(addColumnBtn);
+        footer.appendChild(addCardBtn);
+        columnDiv.appendChild(footer);
+
+        // Render cards in this column
+        const cardList = columnDiv.children;
+        cardList.forEach(card => {
+          renderCard(card, column.id);
+        });
+
+        board.appendChild(columnDiv);
+      });
+
+      // Update stats
+      updateStats();
+    }
+
+    function renderCard(card, columnId) {
+      const cardDiv = document.createElement('div');
+      cardDiv.className = 'card';
+      cardDiv.id = card.id;
+
+      // Title
+      const title = document.createElement('div');
+      title.className = 'card-title';
+      title.textContent = card.title;
+      cardDiv.appendChild(title);
+
+      // Description
+      const description = document.createElement('div');
+      description.className = 'card-description';
+      description.textContent = card.description || '';
+      cardDiv.appendChild(description);
+
+      // Priority badge
+      const badge = document.createElement('div');
+      badge.className = 'card.priority-badge';
+      badge.textContent = card.priority;
+      badge.style.backgroundColor = {
+        'low': '#4caf50',
+        'medium': '#ffeb3b',
+        'high': '#f44336'
+      }[card.priority];
+      cardDiv.appendChild(badge);
+
+      // Due date
+      const dueDate = document.createElement('div');
+      dueDate.className = 'card.due-date';
+      dueDate.textContent = card.dueDate.toDateString();
+      if (card.dueDate < new Date()) {
+        dueDate.classList.add('red');
+      }
+      cardDiv.appendChild(dueDate);
+
+      // Delete button
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'card.delete-btn';
+      deleteBtn.textContent = '🗑️';
+      deleteBtn.addEventListener('click', () => {
+        cards = cards.filter(c => c.id !== deleteBtn.id);
+        renderBoard();
+      });
+      cardDiv.appendChild(deleteBtn);
+
+      // Add card to column
+      const column = document.querySelector(`.column#${columnId}`);
+      if (column) {
+        column.appendChild(cardDiv);
+      }
+    }
+
+    function updateStats() {
+      const totalCards = cards.length;
+      const overdueCards = cards.filter(c => c.dueDate < new Date()).length;
+      const doneCards = cards.filter(c => c.id === 'done').length;
+      const completionRate = (doneCards / totalCards) * 100;
+
+      document.getElementById('totalCards').textContent = totalCards;
+      document.getElementById('overdueCards').textContent = overdueCards;
+      document.getElementById('doneCards').textContent = doneCards;
+      document.getElementById('completionRate').textContent = Math.round(completionRate) + '%';
+    }
+
+    // Drag & Drop
+    function setupDragAndDrop() {
+      const board = document.getElementById('board');
+      board.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', e.target.id);
+        e.target.classList.add('dragging');
+      });
+
+      board.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        const target = e.target.closest('.column');
+        if (target && target.classList.contains('drop-zone')) {
+          target.classList.add('pulse');
+        }
+      });
+
+      board.addEventListener('dragleave', () => {
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+          zone.classList.remove('pulse');
+        });
+      });
+
+      board.addEventListener('drop', (e) => {
+        e.preventDefault();
+        const sourceId = e.dataTransfer.getData('text/plain');
+        const targetId = e.target.id;
+
+        if (sourceId !== targetId) {
+          const sourceCard = cards.find(c => c.id === sourceId);
+          const targetColumn = document.querySelector(`.column#${targetId}`);
+          if (targetColumn) {
+            targetColumn.appendChild(sourceCard);
+            cards = cards.filter(c => c.id !== sourceId);
+            renderBoard();
+          }
+        }
+      });
+
+      // Add drop zones to columns
+      columns.forEach(column => {
+        const dropZone = document.createElement('div');
+        dropZone.className = 'drop-zone';
+        dropZone.dataset.columnId = column.id;
+        column.appendChild(dropZone);
+      });
+    }
+
+    // Persistence
+    function saveToLocalStorage() {
+      localStorage.setItem('kanbanBoard', JSON.stringify({ columns, cards }));
+    }
+
+    function loadFromLocalStorage() {
+      const saved = localStorage.getItem('kanbanBoard');
+      if (saved) {
+        const data = JSON.parse(saved);
+        columns = data.columns;
+        cards = data.cards;
+        renderBoard();
+      }
+    }
+
+    // Initialize
+    window.onload = () => {
+      loadFromLocalStorage();
+      renderBoard();
+      setupDragAndDrop();
+    };
+  </script>
+</body>
+</html>

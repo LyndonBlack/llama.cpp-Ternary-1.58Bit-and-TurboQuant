@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kanban Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   CSS RESET & BASE
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #1a1d27;
+  --bg-card: rgba(30, 34, 48, 0.65);
+  --bg-card-hover: rgba(40, 45, 62, 0.8);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-highlight: rgba(255, 255, 255, 0.18);
+  --text-primary: #e4e4e7;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+  --accent-blue: #3b82f6;
+  --accent-blue-hover: #2563eb;
+  --accent-green: #22c55e;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
+  --glass-bg: rgba(26, 29, 39, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --shadow-glass: 0 8px 32px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-pill: 9999px;
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-slow: 0.4s ease;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding-bottom: 64px;
+}
+
+/* ============================================================
+   HEADER & SEARCH BAR
+   ============================================================ */
+.board-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(15, 17, 23, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-color);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.board-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #e4e4e7, #9ca3af);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  white-space: nowrap;
+}
+
+.search-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 420px;
+}
+
+.search-wrapper svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  padding: 9px 14px 9px 38px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.search-input::placeholder { color: var(--text-muted); }
+.search-input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.filter-wrapper {
+  position: relative;
+}
+
+.filter-select {
+  appearance: none;
+  padding: 9px 32px 9px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%239ca3af' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.filter-select:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* ============================================================
+   BOARD & COLUMNS
+   ============================================================ */
+.board-container {
+  display: flex;
+  gap: 16px;
+  padding: 24px;
+  overflow-x: auto;
+  overflow-y: visible;
+  min-height: calc(100vh - 120px);
+  align-items: flex-start;
+  scroll-behavior: smooth;
+}
+
+.board-container::-webkit-scrollbar { height: 8px; }
+.board-container::-webkit-scrollbar-track { background: transparent; }
+.board-container::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
+.board-container::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+.column {
+  min-width: 300px;
+  max-width: 300px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-glass);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 140px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: box-shadow var(--transition-normal), border-color var(--transition-normal);
+  flex-shrink: 0;
+}
+
+.column.drag-over {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2), var(--shadow-glass);
+  animation: columnPulse 1s ease infinite;
+}
+
+@keyframes columnPulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2), var(--shadow-glass); }
+  50% { box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35), var(--shadow-glass); }
+}
+
+/* Column Header */
+.column-header {
+  padding: 16px 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: default;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.column-header .col-title {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.column-header .col-title:focus {
+  background: var(--bg-secondary);
+}
+
+.column-header .col-count {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.06);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  min-width: 24px;
+  text-align: center;
+}
+
+.column-header .col-actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.column:hover .column-header .col-actions {
+  opacity: 1;
+}
+
+.col-action-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.col-action-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255,255,255,0.08);
+}
+
+.col-action-btn.delete-col:hover {
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* Column Cards Area */
+.column-cards {
+  padding: 4px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 8px;
+}
+
+.column-cards::-webkit-scrollbar { width: 4px; }
+.column-cards::-webkit-scrollbar-track { background: transparent; }
+.column-cards::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  cursor: grab;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), opacity var(--transition-slow), background var(--transition-fast);
+  position: relative;
+}
+
+.card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  background: var(--bg-card-hover);
+}
+
+.card:active { cursor: grabbing; }
+
+.card.dragging {
+  opacity: 0.4;
+  transform: scale(0.96) rotate(1deg);
+  box-shadow: none;
+}
+
+.card.in-done {
+  opacity: 0.6;
+}
+
+.card.in-done .card-title {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.card.hidden-filter {
+  display: none;
+}
+
+.card-placeholder {
+  height: 60px;
+  border-radius: var(--radius-md);
+  background: rgba(255,255,255,0.02);
+  border: 1px dashed rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+/* Card Header: Priority + Delete */
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.priority-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.priority-badge.low {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--accent-green);
+}
+
+.priority-badge.medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--accent-amber);
+}
+
+.priority-badge.high {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--accent-red);
+}
+
+.card-delete-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.card:hover .card-delete-btn { opacity: 1; }
+
+.card-delete-btn:hover {
+  color: var(--accent-red);
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* Card Title */
+.card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+/* Card Due Date */
+.card-due-date {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.card-due-date.overdue {
+  color: var(--accent-red);
+}
+
+.card-due-date .overdue-icon {
+  font-size: 13px;
+}
+
+/* Card Description */
+.card-description {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-top: 6px;
+  overflow: hidden;
+  transition: max-height var(--transition-normal);
+  max-height: 200px;
+}
+
+.card-description.collapsed {
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+}
+
+/* ============================================================
+   ADD CARD BUTTON & FORM
+   ============================================================ */
+.add-card-btn {
+  padding: 10px 14px;
+  margin: 0 12px 12px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.add-card-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* Inline Add Card Form */
+.add-card-form {
+  padding: 0 12px 12px;
+  flex-shrink: 0;
+}
+
+.form-input,
+.form-textarea,
+.form-select {
+  width: 100%;
+  padding: 9px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  outline: none;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  margin-bottom: 8px;
+}
+
+.form-input:focus,
+.form-textarea:focus,
+.form-select:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder { color: var(--text-muted); }
+
+.form-textarea {
+  resize: vertical;
+  min-height: 60px;
+  max-height: 120px;
+}
+
+.form-select {
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.form-btn {
+  padding: 7px 16px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.form-btn:active { transform: scale(0.97); }
+
+.form-btn.save {
+  background: var(--accent-blue);
+  color: #fff;
+}
+
+.form-btn.save:hover { background: var(--accent-blue-hover); }
+
+.form-btn.cancel {
+  background: rgba(255,255,255,0.06);
+  color: var(--text-secondary);
+}
+
+.form-btn.cancel:hover { background: rgba(255,255,255,0.1); }
+
+/* ============================================================
+   ADD COLUMN BUTTON
+   ============================================================ */
+.add-column-btn {
+  min-width: 260px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  color: var(--text-muted);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.add-column-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-blue);
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* ============================================================
+   STATISTICS BAR
+   ============================================================ */
+.stats-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: rgba(15, 17, 23, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--border-color);
+  padding: 10px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.stat-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.stat-value {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-value.done-color { color: var(--accent-green); }
+.stat-value.overdue-color { color: var(--accent-red); }
+.stat-value.blue-color { color: var(--accent-blue); }
+
+/* ============================================================
+   COLUMN ADD FORM
+   ============================================================ */
+.add-column-form {
+  min-width: 260px;
+  background: var(--glass-bg);
+  border: 1px solid var(--accent-blue);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.add-column-form input {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  margin-bottom: 8px;
+}
+
+.add-column-form input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.add-column-form .form-actions {
+  margin-top: 0;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 768px) {
+  .board-header { padding: 12px 16px; gap: 10px; }
+  .board-title { font-size: 17px; }
+  .board-container { padding: 16px; gap: 12px; }
+  .column { min-width: 270px; max-width: 270px; }
+  .stats-bar { gap: 16px; font-size: 12px; padding: 8px 16px; }
+  .stat-item { gap: 5px; }
+}
+
+/* ============================================================
+   ANIMATIONS
+   ============================================================ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card-enter {
+  animation: fadeInUp 0.25s ease forwards;
+}
+
+@keyframes fadeOutCard {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.95); }
+}
+
+.card-removing {
+  animation: fadeOutCard 0.3s ease forwards;
+}
+
+/* Drop zone indicator line */
+.drop-indicator {
+  height: 3px;
+  background: var(--accent-blue);
+  border-radius: 2px;
+  margin: -2px 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.drop-indicator.visible {
+  opacity: 1;
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================
+     HEADER: Search, Filter
+     ============================================================ -->
+<header class="board-header">
+  <h1 class="board-title">Kanban Board</h1>
+  <div class="search-wrapper">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+    <input type="text" class="search-input" id="searchInput" placeholder="Search cards by title..." autocomplete="off">
+  </div>
+  <div class="filter-wrapper">
+    <select class="filter-select" id="filterPriority">
+      <option value="all">All Priorities</option>
+      <option value="low">Low</option>
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+    </select>
+  </div>
+</header>
+
+<!-- ============================================================
+     BOARD AREA
+     ============================================================ -->
+<div class="board-container" id="boardContainer"></div>
+
+<!-- ============================================================
+     STATISTICS BAR
+     ============================================================ -->
+<div class="stats-bar" id="statsBar">
+  <div class="stat-item">Total: <span class="stat-value blue-color" id="statTotal">0</span></div>
+  <div class="stat-item">Overdue: <span class="stat-value overdue-color" id="statOverdue">0</span></div>
+  <div class="stat-item">Done: <span class="stat-value done-color" id="statDone">0</span></div>
+  <div class="stat-item">Completion: <span class="stat-value" id="statCompletion">0%</span></div>
+</div>
+
+<script>
+/* ============================================================
+   SECTION 1: STATE MANAGEMENT
+   ============================================================ */
+
+const STORAGE_KEY = 'kanban_board_state';
+
+/**
+ * Generate a unique ID for cards and columns.
+ */
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+/**
+ * Get today's date as a YYYY-MM-DD string (locale-agnostic).
+ */
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/**
+ * Default board state with example cards.
+ */
+function getDefaultState() {
+  const today = new Date();
+  const past = (offset) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + offset);
+    return d.toISOString().split('T')[0];
+  };
+
+  return {
+    columns: [
+      {
+        id: uid(),
+        title: 'Backlog',
+        cards: [
+          { id: uid(), title: 'Research competitors', description: 'Analyze top 5 competitor products and summarize findings.', priority: 'low', dueDate: past(5) },
+          { id: uid(), title: 'Gather user feedback', description: '', priority: 'medium', dueDate: past(10) }
+        ]
+      },
+      {
+        id: uid(),
+        title: 'To Do',
+        cards: [
+          { id: uid(), title: 'Design login page', description: 'Create wireframes and mockups for the login flow.', priority: 'high', dueDate: past(2) },
+          { id: uid(), title: 'Setup CI/CD pipeline', description: '', priority: 'medium', dueDate: past(7) }
+        ]
+      },
+      {
+        id: uid(),
+        title: 'In Progress',
+        cards: [
+          { id: uid(), title: 'Implement auth flow', description: 'OAuth 2.0 with Google and GitHub providers.', priority: 'high', dueDate: past(-3) }
+        ]
+      },
+      {
+        id: uid(),
+        title: 'Done',
+        cards: [
+          { id: uid(), title: 'Project kickoff', description: 'Initial meeting with stakeholders.', priority: 'low', dueDate: past(20) },
+          { id: uid(), title: 'Define API schema', description: 'RESTful endpoints for user management.', priority: 'medium', dueDate: past(15) }
+        ]
+      }
+    ]
+  };
+}
+
+/**
+ * Load state from localStorage or return default.
+ */
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.columns)) return parsed;
+    }
+  } catch (e) {
+    console.warn('Failed to load state from localStorage:', e);
+  }
+  return getDefaultState();
+}
+
+/**
+ * Save current state to localStorage.
+ */
+function saveState() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(boardState));
+  } catch (e) {
+    console.warn('Failed to save state:', e);
+  }
+}
+
+/**
+ * Reactive board state.
+ */
+let boardState = loadState();
+
+/* ============================================================
+   SECTION 2: RENDERING
+   ============================================================ */
+
+const boardContainer = document.getElementById('boardContainer');
+const searchInput = document.getElementById('searchInput');
+const filterPriority = document.getElementById('filterPriority');
+const statsBar = document.getElementById('statsBar');
+
+/**
+ * Escape HTML to prevent XSS.
+ */
+function esc(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/**
+ * Format a date string for display.
+ */
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  const options = { month: 'short', day: 'numeric', year: 'numeric' };
+  return d.toLocaleDateString('en-US', options);
+}
+
+/**
+ * Check if a due date is overdue (past today).
+ */
+function isOverdue(dateStr) {
+  if (!dateStr) return false;
+  return dateStr < todayStr();
+}
+
+/**
+ * Render a single card element.
+ */
+function renderCard(card, columnId) {
+  const div = document.createElement('div');
+  div.className = 'card card-enter';
+  div.setAttribute('draggable', 'true');
+  div.dataset.cardId = card.id;
+  div.dataset.columnId = columnId;
+
+  // In-done visual style
+  if (columnId === 'done') {
+    div.classList.add('in-done');
+  }
+
+  const overdue = isOverdue(card.dueDate);
+
+  div.innerHTML = `
+    <div class="card-header">
+      <span class="priority-badge ${card.priority}">${card.priority}</span>
+      <button class="card-delete-btn" title="Delete card" data-card-delete="${card.id}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+      </button>
+    </div>
+    <div class="card-title">${esc(card.title)}</div>
+    ${card.dueDate ? `<div class="card-due-date${overdue ? ' overdue' : ''}">${overdue ? '<span class="overdue-icon">⚠️</span>' : ''}${formatDate(card.dueDate)}</div>` : ''}
+    ${card.description ? `<div class="card-description">${esc(card.description)}</div>` : ''}
+  `;
+
+  // Attach drag events
+  const cardEl = div;
+  cardEl.addEventListener('dragstart', handleDragStart);
+  cardEl.addEventListener('dragend', handleDragEnd);
+
+  // Delete button
+  div.querySelector('[data-card-delete]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteCard(card.id, columnId, div);
+  });
+
+  return div;
+}
+
+/**
+ * Render a single column element.
+ */
+function renderColumn(col) {
+  const colDiv = document.createElement('div');
+  colDiv.className = 'column';
+  colDiv.dataset.columnId = col.id;
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'column-header';
+  header.innerHTML = `
+    <input class="col-title" type="text" value="${esc(col.title)}" data-rename-col="${col.id}" readonly>
+    <span class="col-count">${col.cards.length}</span>
+    <div class="col-actions">
+      <button class="col-action-btn delete-col" title="Delete column (must be empty)" data-delete-col="${col.id}">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+      </button>
+    </div>
+  `;
+
+  // Double-click to rename
+  header.querySelector('.col-title').addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    const input = e.target;
+    input.readOnly = false;
+    input.focus();
+    input.select();
+    const finishRename = () => {
+      const newTitle = input.value.trim() || col.title;
+      input.value = newTitle;
+      input.readOnly = true;
+      col.title = newTitle;
+      saveState();
+    };
+    input.addEventListener('blur', finishRename, { once: true });
+    input.addEventListener('keydown', (ke) => {
+      if (ke.key === 'Enter') { ke.preventDefault(); input.blur(); }
+      if (ke.key === 'Escape') { input.value = col.title; input.blur(); }
+    });
+  });
+
+  // Delete column (only if empty)
+  header.querySelector('[data-delete-col]').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const colId = e.target.closest('[data-delete-col]').dataset.deleteCol;
+    const colState = boardState.columns.find(c => c.id === colId);
+    if (colState && colState.cards.length === 0) {
+      boardState.columns = boardState.columns.filter(c => c.id !== colId);
+      saveState();
+      renderBoard();
+    }
+  });
+
+  colDiv.appendChild(header);
+
+  // Cards area
+  const cardsArea = document.createElement('div');
+  cardsArea.className = 'column-cards';
+  cardsArea.dataset.columnId = col.id;
+
+  // Drop zone events for the cards area
+  cardsArea.addEventListener('dragover', handleDragOver);
+  cardsArea.addEventListener('dragenter', handleDragEnter);
+  cardsArea.addEventListener('dragleave', handleDragLeave);
+  cardsArea.addEventListener('drop', handleDrop);
+
+  col.cards.forEach(card => {
+    const cardEl = renderCard(card, col.id);
+    cardsArea.appendChild(cardEl);
+  });
+
+  colDiv.appendChild(cardsArea);
+
+  // Add card button / form
+  const addCardBtn = document.createElement('button');
+  addCardBtn.className = 'add-card-btn';
+  addCardBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> Add card';
+  addCardBtn.addEventListener('click', () => showAddCardForm(col, colDiv, cardsArea));
+  colDiv.appendChild(addCardBtn);
+
+  return colDiv;
+}
+
+/**
+ * Show the inline add-card form inside a column.
+ */
+function showAddCardForm(col, colDiv, cardsArea) {
+  // Remove any existing form
+  const existingForm = colDiv.querySelector('.add-card-form');
+  if (existingForm) existingForm.remove();
+
+  const form = document.createElement('div');
+  form.className = 'add-card-form';
+
+  const titleInput = document.createElement('input');
+  titleInput.className = 'form-input';
+  titleInput.type = 'text';
+  titleInput.placeholder = 'Card title *';
+  titleInput.required = true;
+
+  const descTextarea = document.createElement('textarea');
+  descTextarea.className = 'form-textarea';
+  descTextarea.placeholder = 'Description (optional)';
+  descTextarea.rows = 3;
+
+  const prioritySelect = document.createElement('select');
+  prioritySelect.className = 'form-select';
+  ['low', 'medium', 'high'].forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p;
+    opt.textContent = p.charAt(0).toUpperCase() + p.slice(1);
+    prioritySelect.appendChild(opt);
+  });
+
+  const dateInput = document.createElement('input');
+  dateInput.className = 'form-input';
+  dateInput.type = 'date';
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'form-btn save';
+  saveBtn.textContent = 'Save';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'form-btn cancel';
+  cancelBtn.textContent = 'Cancel';
+
+  actions.appendChild(saveBtn);
+  actions.appendChild(cancelBtn);
+
+  form.append(titleInput, prioritySelect, dateInput, descTextarea, actions);
+  cardsArea.appendChild(form);
+
+  // Focus title input
+  setTimeout(() => titleInput.focus(), 50);
+
+  function closeForm() {
+    form.remove();
+    titleInput.removeEventListener('keydown', onKey);
+    saveBtn.removeEventListener('click', onSave);
+    cancelBtn.removeEventListener('click', onClose);
+  }
+
+  function onSave() {
+    const title = titleInput.value.trim();
+    if (!title) {
+      titleInput.focus();
+      titleInput.style.borderColor = 'var(--accent-red)';
+      titleInput.addEventListener('animationend', () => { titleInput.style.borderColor = ''; }, { once: true });
+      return;
+    }
+    const newCard = {
+      id: uid(),
+      title: title,
+      description: descTextarea.value.trim(),
+      priority: prioritySelect.value,
+      dueDate: dateInput.value || ''
+    };
+    col.cards.push(newCard);
+    saveState();
+    closeForm();
+    renderBoard();
+  }
+
+  function onClose() {
+    closeForm();
+  }
+
+  function onKey(e) {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      onSave();
+    }
+    if (e.key === 'Escape') {
+      onClose();
+    }
+  }
+
+  titleInput.addEventListener('keydown', onKey);
+  saveBtn.addEventListener('click', onSave);
+  cancelBtn.addEventListener('click', onClose);
+}
+
+/**
+ * Render the entire board.
+ */
+function renderBoard() {
+  boardContainer.innerHTML = '';
+
+  boardState.columns.forEach(col => {
+    const colEl = renderColumn(col);
+    boardContainer.appendChild(colEl);
+  });
+
+  // "Add Column" button
+  const addColBtn = document.createElement('button');
+  addColBtn.className = 'add-column-btn';
+  addColBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg> Add Column';
+  addColBtn.addEventListener('click', showAddColumnForm);
+  boardContainer.appendChild(addColBtn);
+
+  applyFilters();
+  updateStats();
+}
+
+/**
+ * Show the inline add-column form.
+ */
+function showAddColumnForm() {
+  const existing = boardContainer.querySelector('.add-column-form');
+  if (existing) return;
+
+  const form = document.createElement('div');
+  form.className = 'add-column-form';
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = 'Column title...';
+  input.value = '';
+
+  const actions = document.createElement('div');
+  actions.className = 'form-actions';
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'form-btn save';
+  saveBtn.textContent = 'Add';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.className = 'form-btn cancel';
+  cancelBtn.textContent = 'Cancel';
+
+  actions.appendChild(saveBtn);
+  actions.appendChild(cancelBtn);
+  form.append(input, actions);
+
+  boardContainer.appendChild(form);
+  input.focus();
+
+  function closeForm() {
+    form.remove();
+    input.removeEventListener('keydown', onKey);
+    saveBtn.removeEventListener('click', onSave);
+    cancelBtn.removeEventListener('click', onClose);
+  }
+
+  function onSave() {
+    const title = input.value.trim();
+    if (!title) { input.focus(); return; }
+    boardState.columns.push({ id: uid(), title: title, cards: [] });
+    saveState();
+    closeForm();
+    renderBoard();
+    // Scroll to new column
+    const newCol = boardContainer.querySelector(`[data-column-id="${boardState.columns[boardState.columns.length - 1].id}"]`);
+    if (newCol) newCol.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'end' });
+  }
+
+  function onClose() {
+    closeForm();
+  }
+
+  function onKey(e) {
+    if (e.key === 'Enter') { e.preventDefault(); onSave(); }
+    if (e.key === 'Escape') { onClose(); }
+  }
+
+  input.addEventListener('keydown', onKey);
+  saveBtn.addEventListener('click', onSave);
+  cancelBtn.addEventListener('click', onClose);
+}
+
+/* ============================================================
+   SECTION 3: DRAG & DROP
+   ============================================================ */
+
+let draggedCardId = null;
+let draggedFromColumnId = null;
+
+function handleDragStart(e) {
+  draggedCardId = e.target.dataset.cardId;
+  draggedFromColumnId = e.target.dataset.columnId;
+  e.target.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', draggedCardId);
+}
+
+function handleDragEnd(e) {
+  e.target.classList.remove('dragging');
+  draggedCardId = null;
+  draggedFromColumnId = null;
+  // Remove all drag-over states
+  document.querySelectorAll('.column.drag-over').forEach(el => el.classList.remove('drag-over'));
+  document.querySelectorAll('.drop-indicator').forEach(el => el.remove());
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+  e.preventDefault();
+  const col = e.target.closest('.column');
+  if (col) col.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+  const col = e.target.closest('.column');
+  // Only remove if we actually left the column element
+  if (col && !col.contains(e.relatedTarget)) {
+    col.classList.remove('drag-over');
+  }
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  const col = e.target.closest('.column');
+  if (!col) return;
+  col.classList.remove('drag-over');
+
+  const targetColId = col.dataset.columnId;
+  if (!draggedCardId || !draggedFromColumnId) return;
+
+  // Find the card and source column
+  const card = findCard(draggedCardId);
+  const sourceCol = boardState.columns.find(c => c.id === draggedFromColumnId);
+  const targetCol = boardState.columns.find(c => c.id === targetColId);
+
+  if (!card || !sourceCol || !targetCol) return;
+
+  // Remove from source
+  sourceCol.cards = sourceCol.cards.filter(c => c.id !== draggedCardId);
+
+  // Determine insert position based on drop location
+  const cardsArea = col.querySelector('.column-cards');
+  const cardElements = [...cardsArea.querySelectorAll('.card:not(.dragging)')];
+  let insertIndex = targetCol.cards.length;
+
+  // Find closest card to drop before
+  const rect = cardsArea.getBoundingClientRect();
+  const y = e.clientY;
+  for (let i = 0; i < cardElements.length; i++) {
+    const cr = cardElements[i].getBoundingClientRect();
+    const mid = cr.top + cr.height / 2;
+    if (y < mid) {
+      insertIndex = i;
+      break;
+    }
+  }
+
+  targetCol.cards.splice(insertIndex, 0, card);
+
+  saveState();
+  renderBoard();
+}
+
+/**
+ * Find a card by ID across all columns.
+ */
+function findCard(cardId) {
+  for (const col of boardState.columns) {
+    const card = col.cards.find(c => c.id === cardId);
+    if (card) return card;
+  }
+  return null;
+}
+
+/* ============================================================
+   SECTION 4: FILTERING
+   ============================================================ */
+
+function applyFilters() {
+  const query = searchInput.value.trim().toLowerCase();
+  const priority = filterPriority.value;
+
+  boardState.columns.forEach(col => {
+    col.cards.forEach(card => {
+      const cardEl = document.querySelector(`.card[data-card-id="${card.id}"]`);
+      if (!cardEl) return;
+
+      const matchesSearch = !query || card.title.toLowerCase().includes(query);
+      const matchesPriority = priority === 'all' || card.priority === priority;
+
+      if (matchesSearch && matchesPriority) {
+        cardEl.classList.remove('hidden-filter');
+      } else {
+        cardEl.classList.add('hidden-filter');
+      }
+    });
+  });
+}
+
+searchInput.addEventListener('input', applyFilters);
+filterPriority.addEventListener('change', applyFilters);
+
+/* ============================================================
+   SECTION 5: PERSISTENCE
+   ============================================================ */
+
+/**
+ * Debounced save to avoid excessive writes.
+ */
+let saveTimeout = null;
+
+function debouncedSave() {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => {
+    saveState();
+  }, 300);
+}
+
+// Override saveState to also trigger debounced persistence
+const originalSaveState = saveState;
+saveState = function() {
+  originalSaveState();
+  // Stats update after save
+  setTimeout(() => {
+    updateStats();
+    applyFilters();
+  }, 0);
+};
+
+/* ============================================================
+   SECTION 6: STATISTICS
+   ============================================================ */
+
+function updateStats() {
+  let total = 0;
+  let overdue = 0;
+  let done = 0;
+
+  boardState.columns.forEach(col => {
+    col.cards.forEach(card => {
+      total++;
+      if (isOverdue(card.dueDate)) overdue++;
+      if (col.id === 'done') done++;
+    });
+  });
+
+  const completionRate = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  document.getElementById('statTotal').textContent = total;
+  document.getElementById('statOverdue').textContent = overdue;
+  document.getElementById('statDone').textContent = done;
+  document.getElementById('statCompletion').textContent = completionRate + '%';
+}
+
+/* ============================================================
+   SECTION 7: INITIALIZATION
+   ============================================================ */
+
+// Initial render
+renderBoard();
+
+// Keyboard shortcut: Escape to close any open forms
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    const openForm = document.querySelector('.add-card-form, .add-column-form');
+    if (openForm) {
+      // Trigger cancel button click if present
+      const cancelBtn = openForm.querySelector('.form-btn.cancel');
+      if (cancelBtn) cancelBtn.click();
+    }
+  }
+});
+</script>
+</body>
+</html>
+

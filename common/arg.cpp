@@ -4103,6 +4103,14 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         }
     ).set_examples({LLAMA_EXAMPLE_SERVER}));
 
+    add_opt(common_arg(
+        {"--entropy-low-k-type"}, "TYPE",
+        "K cache type for low-entropy layers (turbo2_0, turbo4_0, turbo6_0; default: turbo4_0)",
+        [](common_params & params, const std::string & value) {
+            params.entropy_low_k_type = value;
+        }
+    ).set_examples({LLAMA_EXAMPLE_SERVER}));
+
     return ctx_arg;
 }
 

@@ -93,8 +93,11 @@ llama-server \
   -ctk q8_0 -ctv turbo3_0 \
   --host 127.0.0.1 --port 8080 \
   --reasoning off \
-  --entropy-profile entropy_profile_qwen.json \
+  --entropy-profile entropy_profile_qwen_book.json \
   --entropy-prune-ratio 2.0
+
+> **512K context:** use `--n-cpu-moe 40` (one fewer MoE expert layer on GPU frees room for the larger KV cache).
+
 ```
 
 ### Qwen3-VL-30B A3B (vision MoE, comparison only)
@@ -138,12 +141,69 @@ llama-server \
 
 ---
 
+## Real-World Validation: 512K Context on 8GB
+
+Tested on a single RTX 3070 Ti (8 GB VRAM) with the book-calibrated entropy profile at prune ratio 2.0 (default turbo4 for low-entropy layers). Full 512K context fits — no offloading, no tricks.
+
+**Setup:**
+```bash
+~/AI/ternaryturboquant/llama.cpp/build/bin/llama-server \
+  -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  --mmproj ~/AI/models/mmproj-Qwen3.6-35B-A3B-F16.gguf \
+  --no-mmproj-offload \
+  --alias qwen3.6-35b-a3b \
+  -ngl 99 --n-cpu-moe 40 --ctx-size 512000 \
+  --flash-attn on -ctk q8_0 -ctv turbo3_0 \
+  --host 127.0.0.1 --port 8080 \
+  --entropy-profile entropy_profile_qwen_book.json \
+  --entropy-prune-ratio 2.0 --no-mmap
+```
+
+> **Note:** `--n-cpu-moe 40` (instead of the usual 39) was needed to avoid GPU OOM — one fewer MoE layer on GPU makes room for the 512K KV cache.
+
+**Performance (Hitch Hiker's Guide, ~70K prompt tokens):**
+
+| Metric | Value |
+|--------|-------|
+| Prefill (70K tokens) | ~2-3 minutes |
+| Generation (post-prefill) | ~25 t/s |
+| Low-context generation | ~40 t/s |
+| Quality vs Q8 no-entropy | No discernable loss at ratio 2.0 |
+
+**KV cache RAM at 256K context for each pruning ratio:**
+
+| Config | KV cache (MiB) | vs q8 baseline | Quality (Kanban Board) |
+|--------|:--------------:|:--------------:|:---------------------:|
+| q8 no entropy | 2,067 | — | Baseline |
+| Path B ratio 1.5 | not tested | — | — |
+| Path B ratio 2.0 | **1,602** | **−22%** | ✅ Full quality, same visual appeal |
+| Path B ratio 2.5 | **1,536** | **−26%** | ⚠️ Virtually full, minor visual degradation |
+
+Ratio 2.5 saves only 66 MiB more than 2.0 while starting to degrade quality — **ratio 2.0 is the sweet spot**.
+
+**Memory breakdown at 512K ctx / ratio 2.0 from `memory_breakdown_print`:**
+
+| Region | Host (MiB) | GPU (MiB) |
+|--------|:----------:|:---------:|
+| Model (dense layers) | — | 1,439 |
+| Model (MoE experts, CPU) | 22,133 | — |
+| KV cache @ 512K ctx | — | 2,954 |
+| Compute buffers | 1,008 | 1,727 |
+| Unaccounted | — | 1,379 |
+| Free | — | 339 |
+| **Total GPU used** | — | **7,840 / 8,192** |
+
+The KV cache drops from an estimated ~4,134 MiB (q8 K + turbo3 V at 512K, no pruning) to **2,954 MiB** — a **29% savings** from entropy-guided mixed precision, with no discernable quality loss.
+
+---
+
 ## Entropy Profiles (Pre-Calibrated)
 
 | Model | File | Heads | Mean Entropy | CV |
 |-------|------|:----:|:------------:|:--:|
 | Bonsai 8B | `entropy_profile_bonsai.json` | 1152 | 0.620 | 0.58 |
-| Qwen3.6 35B A3B | `entropy_profile_qwen.json` | 640 | 0.620 | 0.55 |
+| Qwen3.6 35B A3B | `entropy_profile_qwen.json` (short prompts, deprecated) | 640 | 0.620 | 0.55 |
+| Qwen3.6 35B A3B | `entropy_profile_qwen_book.json` (Hitch Hiker text) | 640 | **1.081** | 0.24 |
 | Qwen3-VL-30B A3B | `entropy_profile_qwen3vl.json` | 1536 | 0.468 | 0.42 |
 | GLM-4.6V-Flash 9B | `entropy_profile_glm.json` (archived) | 1280 | 0.502 | 0.37 |
 

@@ -3,8 +3,8 @@
 // Calibrates a model's per-head attention entropy profile for use with
 // entropy-adaptive KV cache compression (SCJedi method).
 //
-// Currently generates a synthetic profile for framework testing.
-// Real calibration requires attention-weight extraction from the graph.
+// Supports --cal-text <path> to use a longer text file for calibration
+// sequences instead of the default short sentence starters.
 
 #include "arg.h"
 #include "common.h"
@@ -16,21 +16,94 @@
 #include <cstdlib>
 #include <cstring>
 #include <cmath>
+#include <ctime>
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <memory>
+#include <fstream>
+#include <sstream>
+
+// Load a text file and split into n_segments roughly equal-length chunks,
+// each capped at max_chars. Returns empty vector on failure.
+static std::vector<std::string> load_cal_text(const std::string & path, int n_segments, size_t max_chars) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        LOG_ERR("Failed to open calibration text: %s\n", path.c_str());
+        return {};
+    }
+    std::stringstream buf;
+    buf << file.rdbuf();
+    std::string text = buf.str();
+
+    // Strip leading/trailing whitespace
+    text.erase(0, text.find_first_not_of(" \t\n\r"));
+    text.erase(text.find_last_not_of(" \t\n\r") + 1);
+
+    if (text.empty()) {
+        LOG_ERR("Calibration text is empty\n");
+        return {};
+    }
+
+    // If we want n_segments, split into roughly equal parts
+    size_t total_len = std::min(text.size(), max_chars * n_segments);
+    size_t seg_len = total_len / n_segments;
+
+    std::vector<std::string> segments;
+    size_t pos = 0;
+    for (int i = 0; i < n_segments && pos < text.size(); ++i) {
+        size_t end = std::min(pos + seg_len, text.size());
+        // Try to break at sentence boundary near the end
+        if (end < text.size()) {
+            size_t search_end = std::min(end + 200, text.size());
+            size_t sent_end = text.find_first_of(".!?\n", end);
+            if (sent_end != std::string::npos && sent_end < search_end) {
+                end = sent_end + 1;
+            }
+        }
+        std::string seg = text.substr(pos, end - pos);
+        // Trim whitespace
+        seg.erase(0, seg.find_first_not_of(" \t\n\r"));
+        seg.erase(seg.find_last_not_of(" \t\n\r") + 1);
+        if (!seg.empty()) {
+            segments.push_back(std::move(seg));
+        }
+        pos = end;
+    }
+
+    LOG_INF("Loaded %zu calibration segments from '%s'\n", segments.size(), path.c_str());
+    return segments;
+}
+
+// Check for --cal-text flag before common_params_parse consumes all args
+static std::string extract_cal_text_path(int & argc, char **& argv) {
+    std::string path;
+    int write_idx = 1;
+    for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--cal-text") == 0 && i + 1 < argc) {
+            path = argv[i + 1];
+            i++; // skip value
+        } else {
+            argv[write_idx++] = argv[i];
+        }
+    }
+    argc = write_idx;
+    argv[argc] = nullptr;
+    return path;
+}
 
 int main(int argc, char ** argv) {
+    std::string cal_text_path = extract_cal_text_path(argc, argv);
+
     common_params params;
 
     if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_COMMON, nullptr)) {
         return 1;
     }
 
-    // Override for calibration: shorter context, don't need long sequences
+    // Override for calibration: don't need huge context
     if (params.n_ctx == 0 || params.n_ctx > 2048) {
-        params.n_ctx = 512;
+        params.n_ctx = 1024;
     }
 
     LOG_INF("Initializing model for entropy calibration...\n");
@@ -57,25 +130,52 @@ int main(int argc, char ** argv) {
     LOG_INF("  Embed:  %d\n", n_embd);
     LOG_INF("  Ctx:    %d\n", params.n_ctx);
 
-    // Try calibration (placeholder — returns null until hooks are implemented)
-    std::vector<const char *> prompts = {
-        "The theory of general relativity predicts that the universe is",
-        "A neural network processes information by learning to recognize patterns in",
-        "Machine learning algorithms can be used to solve complex problems in",
-        "Natural language processing systems rely on transformer architectures to",
-        "The process of evolution by natural selection results in organisms that are",
-        "Climate change is driven by several factors including greenhouse gas emissions from",
-        "The history of artificial intelligence spans several decades from early symbolic systems to",
-        "Protein folding is a fundamental biological process where amino acid chains",
-        "Renewable energy sources include solar and wind power which can",
-        "The human brain contains approximately eighty-six billion neurons that communicate through",
-    };
+    // Build calibration prompts
+    std::vector<const char *> prompts_c;
+    std::vector<std::string> prompt_storage;
 
-    auto * profile = llama_entropy_calibrate(ctx, prompts);
+    if (!cal_text_path.empty()) {
+        auto segments = load_cal_text(cal_text_path, 10, params.n_ctx * 4);  // ~4 chars per token
+        if (segments.size() >= 3) {
+            prompt_storage = std::move(segments);
+            for (auto & s : prompt_storage) {
+                // Truncate to roughly n_ctx tokens worth of chars
+                if (s.size() > (size_t)params.n_ctx * 5) {
+                    s.resize(params.n_ctx * 5);
+                }
+                prompts_c.push_back(s.c_str());
+            }
+        }
+    }
+
+    // Fallback to default short prompts if no text file loaded
+    if (prompts_c.empty()) {
+        LOG_INF("Using default calibration prompts (10 sentence starters, ~10 tokens each)\n");
+        LOG_INF("For better results, provide longer text with --cal-text <file>\n");
+        static const char * default_prompts[] = {
+            "The theory of general relativity predicts that the universe is",
+            "A neural network processes information by learning to recognize patterns in",
+            "Machine learning algorithms can be used to solve complex problems in",
+            "Natural language processing systems rely on transformer architectures to",
+            "The process of evolution by natural selection results in organisms that are",
+            "Climate change is driven by several factors including greenhouse gas emissions from",
+            "The history of artificial intelligence spans several decades from early symbolic systems to",
+            "Protein folding is a fundamental biological process where amino acid chains",
+            "Renewable energy sources include solar and wind power which can",
+            "The human brain contains approximately eighty-six billion neurons that communicate through",
+        };
+        for (auto * p : default_prompts) {
+            prompts_c.push_back(p);
+        }
+    }
+
+    auto * profile = llama_entropy_calibrate(ctx, prompts_c);
     if (profile) {
         profile->save("entropy_profile.json");
         llama_entropy_profile_free(profile);
         LOG_INF("Entropy profile saved to entropy_profile.json\n");
+        llama_free(ctx);
+        llama_model_free(model);
         return 0;
     }
 
@@ -93,19 +193,18 @@ int main(int argc, char ** argv) {
     float total_entropy = 0.0f;
     float min_ent = 999.0f, max_ent = 0.0f;
 
+    srand(time(nullptr));
     for (int l = 0; l < n_layers; ++l) {
         for (int h = 0; h < n_heads; ++h) {
             llama_entropy_head eh;
             eh.layer = l;
             eh.head  = h;
 
-            // Simulate head type distribution based on layer position
             float entropy;
             float sink_weight;
             float r = (float)rand() / RAND_MAX;
 
             if (l < 3) {
-                // Early layers: more diffuse/mixed
                 if (r < 0.50f) {
                     entropy = 0.2f + (float)rand() / RAND_MAX * 0.8f;
                     sink_weight = 0.6f + (float)rand() / RAND_MAX * 0.3f;
@@ -117,7 +216,6 @@ int main(int argc, char ** argv) {
                     sink_weight = 0.05f + (float)rand() / RAND_MAX * 0.1f;
                 }
             } else if (l < n_layers - 2) {
-                // Middle layers: mostly sink/focused
                 if (r < 0.70f) {
                     entropy = 0.1f + (float)rand() / RAND_MAX * 0.5f;
                     sink_weight = 0.7f + (float)rand() / RAND_MAX * 0.25f;
@@ -129,7 +227,6 @@ int main(int argc, char ** argv) {
                     sink_weight = 0.1f + (float)rand() / RAND_MAX * 0.15f;
                 }
             } else {
-                // Late layers: mixed distribution
                 if (r < 0.40f) {
                     entropy = 0.2f + (float)rand() / RAND_MAX * 1.0f;
                     sink_weight = 0.5f + (float)rand() / RAND_MAX * 0.3f;
@@ -156,7 +253,6 @@ int main(int argc, char ** argv) {
     }
 
     syn_profile->mean_entropy = total_entropy / (float)syn_profile->heads.size();
-
     float var = 0.0f;
     for (const auto & h : syn_profile->heads) {
         float d = h.entropy - syn_profile->mean_entropy;

@@ -38,7 +38,9 @@ public:
                      bool   unified,
                             /* layer filters */
     const layer_filter_cb & filter_attn = nullptr,
-    const layer_filter_cb & filter_recr = nullptr);
+    const layer_filter_cb & filter_recr = nullptr,
+                            /* entropy per-layer K callback */
+    const std::function<ggml_type(int32_t il)> & layer_type_k_cb = {});
 
     ~llama_memory_hybrid() = default;
 
