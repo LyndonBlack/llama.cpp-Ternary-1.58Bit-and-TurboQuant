@@ -5,14 +5,42 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Upstream](https://img.shields.io/badge/upstream-ggml--org%2Fllama.cpp-blue)](https://github.com/ggml-org/llama.cpp)
 
-This fork combines current `llama.cpp` with two local research tracks:
+**512K token context on a single 8 GB GPU — at full quality.**
 
-1. **Ternary / Q2_0 model support** for 1.58-bit-style GGUF models, including the Ternary Bonsai Q2_0 path.
-2. **TurboQuant / TurboKV cache compression** for long-context inference with compressed K/V cache types.
+This fork extends `llama.cpp` with **entropy-guided KV cache compression**, achieving ~30% memory savings with zero quality loss. The highlight: Qwen3.6 35B A3B (a 35B MoE model) runs with 512K context on an RTX 3070 Ti.
 
-Repository: <https://github.com/LyndonBlack/llama.cpp-Ternary-1.58Bit-and-TurboQuant>
+## Quick start
 
-The upstream `llama.cpp` README is preserved below this fork overview, because the normal build, server, API, model, and ecosystem documentation still applies unless noted otherwise.
+```bash
+# Build (CUDA)
+cmake .. -DGGML_CUDA=ON -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+
+# Run Qwen3.6 with entropy-guided KV cache — 256K context
+llama-server -m Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  -ngl 99 --n-cpu-moe 39 --ctx-size 256000 --flash-attn on \
+  -ctk q8_0 -ctv turbo3_0 \
+  --entropy-profile entropy_profile_qwen_book.json \
+  --entropy-prune-ratio 2.0
+```
+
+> **512K context?** Use `--n-cpu-moe 40` instead of 39. See the [full docs](docs/turboternary/README.md) for details.
+
+## Key features
+
+- **Entropy-adaptive KV cache** — per-layer mixed precision (q8 K for attention layers, turbo4 K for the rest)
+- **TurboQuant types** — turbo2/3/4/6 for long-context inference
+- **Ternary Bonsai / Q2_0 model support** — 1.58-bit GGUF models
+- **MoE CPU expert offloading** — run 35B models on 8 GB VRAM
+- **512K context validated** — real-world testing with a 35B model on RTX 3070 Ti
+
+## 📖 Full documentation
+
+All validation results, calibration instructions, recommended configs, and architecture notes are in **[`docs/turboternary/README.md`](docs/turboternary/README.md)**.
+
+---
+
+The upstream `llama.cpp` README follows below. The standard build, server, API, and model documentation still applies unless noted otherwise.
 
 ## What this branch adds
 
