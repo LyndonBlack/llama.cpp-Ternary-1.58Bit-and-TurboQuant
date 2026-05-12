@@ -3114,7 +3114,7 @@ private:
                                 }
                             }
 
-                            llama_memory_prune_by_importance(ctx,
+                            llama_memory_prune_by_importance(ctx_tgt,
                                 positions.data(), scores.data(), (int32_t)positions.size(), keep_ratio);
                         }
                     }
