@@ -8,7 +8,16 @@ Record of prompts used for qualitative assessment of entropy-guided KV cache per
 
 **Result:** First attempt: visually rich scene with articulated figures, good anatomy, but animation loop failed to start (one-line bug). Second attempt as a clean re-prompt: ✅ animated correctly on first try — the model resolved the issue without being told about it.
 
-**Comparison:** Meets or exceeds ChatGPT and Gemini output for this popular single-file HTML animation challenge.
+**Comparison with cloud models** (same prompt, same test):
+
+| Model | Running | Time | Result |
+|-------|---------|------|--------|
+| **Qwen3.6 35B A3B** ⭐ | Local (8 GB GPU) | ~5:23 | ✅ Fully working — articulated figures, correct limb motion, dog forwards |
+| ChatGPT 5.5 | Cloud | ~3:00 | ❌ No animation, layout issues |
+| Claude Sonnet 4.6 | Cloud | ~4:00 | ⚠️ Good scene, arms swing incorrectly, dog walks backwards |
+| Gemini Pro 3.1 | Cloud | ~5:00 | ⚠️ Animates fairly well, less polished |
+
+Qwen3.6 was the only model running locally on consumer hardware (Ryzen 5 3800X, 32 GB DDR4-3600, RTX 3070 Ti 8 GB) — yet produced the best result of the four.
 
 **Hardware & performance:**
 - CPU: AMD Ryzen 5 3800X (8c/16t)

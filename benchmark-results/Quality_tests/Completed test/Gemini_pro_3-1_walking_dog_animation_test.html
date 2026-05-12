@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procedural Walk Cycle</title>
+<style>
+    body, html {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+        background-color: #4facfe; /* Fallback for loading frame */
+    }
+    canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+</style>
+</head>
+<body>
+<canvas id="view"></canvas>
+<script>
+    const canvas = document.getElementById('view');
+    const ctx = canvas.getContext('2d');
+    let w, h, scale, vw;
+
+    // Handle responsive fullscreen scaling
+    function resize() {
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+        // Normalize coordinates to a base height of 800px
+        scale = h / 800;
+        vw = w / scale; // Virtual width
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Setup Parallax Environment Objects
+    const clouds = [];
+    for(let i=0; i<12; i++) {
+        clouds.push({
+            x: Math.random() * 3000,
+            y: 40 + Math.random() * 180,
+            scale: 0.5 + Math.random() * 1.5,
+            speed: 15 + Math.random() * 20
+        });
+    }
+
+    const treeColors = ['#2e7d32', '#388e3c', '#1b5e20', '#43a047'];
+    const trees = [];
+    for(let i=0; i<18; i++) {
+        trees.push({
+            x: Math.random() * 3000,
+            scale: 0.6 + Math.random() * 0.9,
+            speed: 180 + Math.random() * 60, // Parallax depth layer
+            color: treeColors[Math.floor(Math.random() * treeColors.length)]
+        });
+    }
+
+    // Forward Kinematics Limb Drawing Helper
+    function drawLimb(x, y, angle, length, width, color) {
+        const ex = x + Math.sin(angle) * length;
+        const ey = y + Math.cos(angle) * length;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = width;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+        return { x: ex, y: ey }; // Return joint position for next limb
+    }
+
+    let lastTime = performance.now();
+    let time = 0;
+
+    // Main Procedural Animation Loop
+    function render(now) {
+        let dt = (now - lastTime) / 1000;
+        if(dt > 0.1) dt = 0.1; // Prevent massive jumps if tab is backgrounded
+        lastTime = now;
+        time += dt;
+
+        ctx.clearRect(0, 0, w, h);
+
+        // --- BACKGROUND & PARALLAX SCENE ---
+        
+        // Sky Gradient
+        const sky = ctx.createLinearGradient(0, 0, 0, h);
+        sky.addColorStop(0, '#4facfe');
+        sky.addColorStop(1, '#81d4fa');
+        ctx.fillStyle = sky;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.scale(scale, scale);
+
+        // Sun
+        ctx.fillStyle = '#fff9c4';
+        ctx.beginPath();
+        ctx.arc(vw * 0.85, 120, 80, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+        ctx.beginPath();
+        ctx.arc(vw * 0.85, 120, 130, 0, Math.PI*2);
+        ctx.fill();
+
+        // Clouds (Slowest layer)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        clouds.forEach(c => {
+            c.x -= c.speed * dt;
+            if(c.x < -200) c.x = vw + 200;
+            ctx.save();
+            ctx.translate(c.x, c.y);
+            ctx.scale(c.scale, c.scale);
+            ctx.beginPath();
+            ctx.arc(0, 0, 30, 0, Math.PI*2);
+            ctx.arc(30, -10, 40, 0, Math.PI*2);
+            ctx.arc(60, 0, 35, 0, Math.PI*2);
+            ctx.arc(30, 10, 30, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        // Distant Mountains
+        ctx.fillStyle = '#90caf9';
+        ctx.beginPath();
+        ctx.moveTo(0, 480);
+        for(let i = 0; i <= vw + 100; i += 50) {
+            ctx.lineTo(i, 280 + Math.sin(i * 0.003 + time * 0.08) * 90 + Math.sin(i * 0.01) * 30);
+        }
+        ctx.lineTo(vw, 480);
+        ctx.lineTo(0, 480);
+        ctx.fill();
+
+        // Rolling Hills
+        ctx.fillStyle = '#aed581';
+        ctx.beginPath();
+        ctx.moveTo(0, 480);
+        for(let i = 0; i <= vw + 100; i += 40) {
+            ctx.lineTo(i, 390 + Math.sin(i * 0.005 + time * 0.25) * 60);
+        }
+        ctx.lineTo(vw, 480);
+        ctx.lineTo(0, 480);
+        ctx.fill();
+
+        // Grass Base
+        ctx.fillStyle = '#81c784';
+        ctx.fillRect(0, 450, vw, 190);
+
+        // Scrolling Trees (Medium layer)
+        trees.forEach(t => {
+            t.x -= t.speed * dt;
+            if(t.x < -200) t.x = vw + 200;
+            ctx.save();
+            ctx.translate(t.x, 500);
+            ctx.scale(t.scale, t.scale);
+            
+            // Trunk
+            ctx.fillStyle = '#4e342e';
+            ctx.fillRect(-12, -140, 24, 140);
+            
+            // Canopy
+            ctx.fillStyle = t.color;
+            ctx.beginPath();
+            ctx.arc(0, -170, 70, 0, Math.PI*2);
+            ctx.arc(-45, -120, 60, 0, Math.PI*2);
+            ctx.arc(45, -120, 60, 0, Math.PI*2);
+            ctx.fill();
+            ctx.restore();
+        });
+
+        // Road Curb
+        ctx.fillStyle = '#7f8c8d';
+        ctx.fillRect(0, 635, vw, 10);
+        ctx.fillStyle = '#bdc3c7';
+        ctx.fillRect(0, 645, vw, 15);
+
+        // Asphalt Road
+        ctx.fillStyle = '#455a64';
+        ctx.fillRect(0, 660, vw, 140);
+
+        // Fast Scrolling Road Stripes (Fastest layer)
+        ctx.fillStyle = '#eceff1';
+        const stripeWidth = 90;
+        const gap = 120;
+        const total = stripeWidth + gap;
+        const roadSpeed = 500;
+        const offset = (time * roadSpeed) % total;
+        for(let i = -offset; i < vw + total; i += total) {
+            ctx.fillRect(i, 715, stripeWidth, 12);
+        }
+
+        // --- PROCEDURAL ANIMATION VARIABLES ---
+        
+        // Multipliers control the "briskness" of the walk
+        const tWalk = time * 9; 
+        const tDog = time * 13.5; 
+        
+        // Keep characters centered dynamically based on screen ratio
+        const cx = vw / 2 - 170; // Person Center X
+        const cy = 475 + Math.cos(tWalk * 2) * 14; // Deep human hip bounce
+
+        const dogCx = vw / 2 + 150; // Dog Center X
+        const dogCy = 570 + Math.cos(tDog * 2) * 7; // Fast dog hip bounce
+
+        // Subject Shadows
+        ctx.fillStyle = 'rgba(0,0,0,0.25)';
+        ctx.beginPath();
+        ctx.ellipse(cx + 15, 665, 45, 8, 0, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(dogCx, 665, 55, 10, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        // Color Palette
+        const skin = '#f4a460';
+        const shirt = '#d32f2f';
+        const pants = '#1976d2';
+        const shoes = '#212121';
+        const dogColor = '#e65100';
+        const dogDark = '#bf360c';
+
+        // --- BACKGROUND LIMBS (Drawn behind the bodies) ---
+
+        // Person Left Arm (Back)
+        const lArmSwing = Math.sin(tWalk + Math.PI);
+        const shoulderX = cx + 30; // Torso leaning forward
+        const shoulderY = cy - 130;
+        
+        const lUpperArmAngle = lArmSwing * 0.75;
+        const lElbowAngle = lUpperArmAngle - 0.45;
+        const lElbow = drawLimb(shoulderX, shoulderY, lUpperArmAngle, 65, 18, shirt);
+        const lHand = drawLimb(lElbow.x, lElbow.y, lElbowAngle, 60, 14, skin);
+
+        // Person Left Leg (Back)
+        const lLegSwing = Math.sin(tWalk);
+        const lThighAngle = lLegSwing * 0.7;
+        const lKneeAngle = lThighAngle + (lLegSwing > 0 ? -lLegSwing * 1.35 : 0);
+        const lKnee = drawLimb(cx, cy, lThighAngle, 90, 26, '#1565c0'); // Darker for depth
+        const lAnkle = drawLimb(lKnee.x, lKnee.y, lKneeAngle, 85, 20, skin);
+        
+        // Person Left Shoe
+        drawLimb(lAnkle.x, lAnkle.y + 5, Math.PI/2 - 0.15, 34, 18, shoes);
+        drawLimb(lAnkle.x, lAnkle.y + 14, Math.PI/2, 36, 6, '#fff'); // Sole
+
+        // Dog Left Legs (Back)
+        const dLFrontSwing = Math.sin(tDog + Math.PI);
+        const dLBackSwing = Math.sin(tDog);
+        
+        // Dog Left Front Leg
+        const dLFrontKneeAngle = dLFrontSwing * 0.6 + (dLFrontSwing > 0 ? -dLFrontSwing * 1.3 : 0);
+        const dLFrontKnee = drawLimb(dogCx + 40, dogCy + 5, dLFrontSwing * 0.6, 42, 12, dogDark);
+        drawLimb(dLFrontKnee.x, dLFrontKnee.y, dLFrontKneeAngle, 38, 10, dogDark);
+        
+        // Dog Left Back Leg
+        const dLBackKneeAngle = dLBackSwing * 0.6 + (dLBackSwing < 0 ? -dLBackSwing * 1.3 : 0);
+        const dLBackKnee = drawLimb(dogCx - 45, dogCy + 5, dLBackSwing * 0.6, 42, 14, dogDark);
+        drawLimb(dLBackKnee.x, dLBackKnee.y, dLBackKneeAngle, 38, 10, dogDark);
+
+        // Dog Tail (Wagging procedural animation)
+        const tailAngle = -Math.PI/3 + Math.sin(time * 28) * 0.45;
+        drawLimb(dogCx - 60, dogCy - 15, tailAngle, 65, 12, dogColor);
+
+        // --- CENTRAL BODIES ---
+
+        // Dog Body Profile
+        ctx.fillStyle = dogColor;
+        ctx.beginPath();
+        ctx.ellipse(dogCx, dogCy - 5, 80, 40, -0.05, 0, Math.PI*2);
+        ctx.fill();
+
+        // Dog Neck
+        drawLimb(dogCx + 55, dogCy - 10, 1.2, 45, 30, dogColor);
+        
+        // Dog Head Profile
+        const dogHeadX = dogCx + 85;
+        const dogHeadY = dogCy - 38 + Math.cos(tDog * 2) * 5;
+        ctx.beginPath();
+        ctx.arc(dogHeadX, dogHeadY, 30, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Dog Snout
+        ctx.beginPath();
+        ctx.ellipse(dogHeadX + 30, dogHeadY + 8, 24, 15, 0.1, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Dog Nose Tip
+        ctx.fillStyle = '#111';
+        ctx.beginPath();
+        ctx.arc(dogHeadX + 50, dogHeadY + 6, 6, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Dog Floppy Ear (Right/Foreground)
+        ctx.fillStyle = dogDark;
+        ctx.beginPath();
+        ctx.ellipse(dogHeadX - 5, dogHeadY - 10, 14, 30, -Math.PI/6, 0, Math.PI*2);
+        ctx.fill();
+
+        // Dog Collar
+        ctx.strokeStyle = '#4caf50'; // Bright Green Collar
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(dogCx + 60, dogCy - 45);
+        ctx.lineTo(dogCx + 78, dogCy - 12);
+        ctx.stroke();
+
+        // Person Torso
+        ctx.strokeStyle = shirt;
+        ctx.lineWidth = 50;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(shoulderX, shoulderY);
+        ctx.stroke();
+
+        // Person Neck
+        drawLimb(shoulderX, shoulderY, 0.2, 30, 18, skin);
+
+        // Person Head
+        const headX = shoulderX + 10;
+        const headY = shoulderY - 45;
+        ctx.fillStyle = skin;
+        ctx.beginPath();
+        ctx.arc(headX, headY, 34, 0, Math.PI*2);
+        ctx.fill();
+        
+        // Person Nose
+        ctx.beginPath();
+        ctx.arc(headX + 34, headY + 5, 7, 0, Math.PI*2);
+        ctx.fill();
+
+        // Person Baseball Cap
+        ctx.fillStyle = '#2c3e50'; 
+        ctx.beginPath();
+        ctx.arc(headX, headY - 5, 36, Math.PI, 0);
+        ctx.fill();
+        // Cap Brim
+        ctx.fillRect(headX, headY - 12, 55, 9);
+
+        // --- FOREGROUND LIMBS ---
+
+        // Person Right Leg (Front)
+        const rLegSwing = Math.sin(tWalk + Math.PI);
+        const rThighAngle = rLegSwing * 0.7;
+        const rKneeAngle = rThighAngle + (rLegSwing > 0 ? -rLegSwing * 1.35 : 0);
+        const rKnee = drawLimb(cx, cy, rThighAngle, 90, 26, pants);
+        const rAnkle = drawLimb(rKnee.x, rKnee.y, rKneeAngle, 85, 20, skin);
+        
+        // Person Right Shoe
+        drawLimb(rAnkle.x, rAnkle.y + 5, Math.PI/2 - 0.15, 34, 18, shoes);
+        drawLimb(rAnkle.x, rAnkle.y + 14, Math.PI/2, 36, 6, '#fff');
+
+        // Person Right Arm (Front) - Absorbing the leash tension
+        const rUpperArmAngle = 0.85 + Math.sin(tWalk) * 0.1; // Mostly fixed forward
+        const rElbowAngle = rUpperArmAngle - 0.55;
+        const rElbow = drawLimb(shoulderX, shoulderY, rUpperArmAngle, 65, 18, shirt);
+        const rHand = drawLimb(rElbow.x, rElbow.y, rElbowAngle, 60, 14, skin);
+
+        // Dog Right Legs (Front)
+        const dRFrontSwing = Math.sin(tDog);
+        const dRBackSwing = Math.sin(tDog + Math.PI);
+        
+        // Dog Right Front Leg
+        const dRFrontKneeAngle = dRFrontSwing * 0.6 + (dRFrontSwing > 0 ? -dRFrontSwing * 1.3 : 0);
+        const dRFrontKnee = drawLimb(dogCx + 40, dogCy + 5, dRFrontSwing * 0.6, 42, 12, dogColor);
+        drawLimb(dRFrontKnee.x, dRFrontKnee.y, dRFrontKneeAngle, 38, 10, dogColor);
+        
+        // Dog Right Back Leg
+        const dRBackKneeAngle = dRBackSwing * 0.6 + (dRBackSwing < 0 ? -dRBackSwing * 1.3 : 0);
+        const dRBackKnee = drawLimb(dogCx - 45, dogCy + 5, dRBackSwing * 0.6, 42, 14, dogColor);
+        drawLimb(dRBackKnee.x, dRBackKnee.y, dRBackKneeAngle, 38, 10, dogColor);
+
+        // --- DYNAMIC LEASH ---
+        
+        const collarPosX = dogCx + 65;
+        const collarPosY = dogCy - 28;
+        
+        ctx.strokeStyle = '#263238';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(rHand.x, rHand.y);
+        
+        // Calculate physics for the leash sag based on distance and stepping impact
+        const dist = collarPosX - rHand.x;
+        const sag = 45 + Math.sin(tWalk * 2) * 18; 
+        
+        // Draw fluid bezier/quadratic curve connecting hand to collar
+        ctx.quadraticCurveTo(
+            rHand.x + dist / 2, 
+            Math.max(rHand.y, collarPosY) + sag, 
+            collarPosX, 
+            collarPosY
+        );
+        ctx.stroke();
+
+        ctx.restore();
+        
+        // Loop the render seamlessly
+        requestAnimationFrame(render);
+    }
+
+    // Initialize Animation Loop
+    requestAnimationFrame(render);
+</script>
+</body>
+</html>

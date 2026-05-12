@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #1a0a2e; }
+  canvas { display: block; width: 100vw; height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W, H, t = 0;
+
+function resize() {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// Easing for smooth walk
+function sineWave(t, freq, amp, phase = 0) {
+  return Math.sin(t * freq + phase) * amp;
+}
+
+// Sky gradient
+function drawSky() {
+  const grad = ctx.createLinearGradient(0, 0, 0, H * 0.65);
+  grad.addColorStop(0, '#0d1b3e');
+  grad.addColorStop(0.4, '#1a3a6e');
+  grad.addColorStop(0.7, '#e8804a');
+  grad.addColorStop(0.85, '#f4b55a');
+  grad.addColorStop(1, '#fcd09a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H * 0.65);
+}
+
+// Stars
+const stars = Array.from({length: 80}, () => ({
+  x: Math.random(),
+  y: Math.random() * 0.45,
+  r: Math.random() * 1.5 + 0.3,
+  twinkle: Math.random() * Math.PI * 2
+}));
+
+function drawStars() {
+  stars.forEach(s => {
+    const alpha = 0.4 + 0.6 * Math.sin(t * 0.8 + s.twinkle);
+    ctx.beginPath();
+    ctx.arc(s.x * W, s.y * H, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,220,${alpha})`;
+    ctx.fill();
+  });
+}
+
+// Sun/Moon
+function drawSun() {
+  const sx = W * 0.72, sy = H * 0.22;
+  // Glow
+  const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, 80);
+  grad.addColorStop(0, 'rgba(255,200,80,0.9)');
+  grad.addColorStop(0.3, 'rgba(255,160,40,0.5)');
+  grad.addColorStop(1, 'rgba(255,120,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(sx - 80, sy - 80, 160, 160);
+  // Sun disc
+  ctx.beginPath();
+  ctx.arc(sx, sy, 38, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffe066';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(sx, sy, 32, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff5b0';
+  ctx.fill();
+}
+
+// Clouds - parallax layers
+const cloudLayers = [
+  { speed: 0.18, y: 0.12, clouds: [{x:0.1,w:0.18,h:0.05},{x:0.5,w:0.22,h:0.06},{x:0.82,w:0.14,h:0.04}], color: 'rgba(255,200,150,0.55)' },
+  { speed: 0.11, y: 0.22, clouds: [{x:0.25,w:0.16,h:0.04},{x:0.65,w:0.19,h:0.05}], color: 'rgba(255,180,120,0.35)' },
+];
+
+function drawClouds() {
+  cloudLayers.forEach(layer => {
+    layer.clouds.forEach(cloud => {
+      const xPos = ((cloud.x - t * layer.speed * 0.0008) % 1 + 1) % 1;
+      const cx = xPos * W, cy = layer.y * H;
+      const cw = cloud.w * W, ch = cloud.h * H;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, cw * 0.5, ch * 0.5, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx - cw * 0.2, cy + ch * 0.1, cw * 0.3, ch * 0.4, 0, 0, Math.PI * 2);
+      ctx.ellipse(cx + cw * 0.25, cy + ch * 0.12, cw * 0.28, ch * 0.38, 0, 0, Math.PI * 2);
+      ctx.fillStyle = layer.color;
+      ctx.fill();
+    });
+  });
+}
+
+// Distant city skyline - parallax
+const buildings = Array.from({length: 22}, (_, i) => ({
+  x: (i / 22),
+  w: 0.025 + Math.random() * 0.04,
+  h: 0.08 + Math.random() * 0.18,
+  windows: Math.floor(Math.random() * 6) + 2
+}));
+
+function drawSkyline() {
+  const baseY = H * 0.62;
+  const scroll = (t * 0.00035) % 1;
+  for (let rep = -1; rep <= 1; rep++) {
+    buildings.forEach(b => {
+      const bx = ((b.x - scroll + rep + 2) % 1) * W;
+      const bw = b.w * W;
+      const bh = b.h * H;
+      ctx.fillStyle = '#0a1a35';
+      ctx.fillRect(bx - bw * 0.5, baseY - bh, bw, bh);
+      // Windows
+      for (let wy = 0; wy < b.windows; wy++) {
+        for (let wx = 0; wx < 2; wx++) {
+          const lit = Math.sin(b.x * 17 + wy * 3.1 + wx * 7.3) > 0.2;
+          if (lit) {
+            ctx.fillStyle = 'rgba(255,230,100,0.7)';
+            ctx.fillRect(bx - bw * 0.3 + wx * bw * 0.38, baseY - bh + 8 + wy * (bh * 0.13), bw * 0.18, bh * 0.08);
+          }
+        }
+      }
+    });
+  }
+}
+
+// Trees - parallax layers
+const treeLayers = [
+  { speed: 0.0014, count: 12, yBase: 0.66, hRange: [0.12, 0.19], color1: '#0d2e1a', color2: '#0a2214' },
+  { speed: 0.0028, count: 9, yBase: 0.67, hRange: [0.10, 0.16], color1: '#122e18', color2: '#0c2212' },
+];
+
+function drawTrees() {
+  treeLayers.forEach(layer => {
+    for (let i = 0; i < layer.count; i++) {
+      const baseX = (i / layer.count);
+      const bx = ((baseX - t * layer.speed) % 1 + 1) % 1;
+      const tx = bx * W;
+      const ty = layer.yBase * H;
+      const th = (layer.hRange[0] + (Math.sin(i * 7.3) * 0.5 + 0.5) * (layer.hRange[1] - layer.hRange[0])) * H;
+      // Trunk
+      ctx.fillStyle = '#1a0e06';
+      ctx.fillRect(tx - 5, ty - th * 0.35, 10, th * 0.38);
+      // Canopy layers
+      for (let c = 0; c < 3; c++) {
+        const cf = (3 - c) / 3;
+        ctx.beginPath();
+        ctx.moveTo(tx, ty - th * (0.35 + c * 0.22));
+        ctx.lineTo(tx - th * 0.18 * cf, ty - th * (0.08 + c * 0.18));
+        ctx.lineTo(tx + th * 0.18 * cf, ty - th * (0.08 + c * 0.18));
+        ctx.closePath();
+        ctx.fillStyle = c === 0 ? layer.color1 : layer.color2;
+        ctx.fill();
+      }
+    }
+  });
+}
+
+// Ground / road
+function drawGround() {
+  // Dirt/grass strip
+  const grassGrad = ctx.createLinearGradient(0, H * 0.64, 0, H * 0.72);
+  grassGrad.addColorStop(0, '#1e4a1a');
+  grassGrad.addColorStop(1, '#152e12');
+  ctx.fillStyle = grassGrad;
+  ctx.fillRect(0, H * 0.64, W, H * 0.1);
+
+  // Road
+  const roadTop = H * 0.72;
+  const roadBot = H;
+  const roadGrad = ctx.createLinearGradient(0, roadTop, 0, roadBot);
+  roadGrad.addColorStop(0, '#2a2a2a');
+  roadGrad.addColorStop(0.3, '#1e1e1e');
+  roadGrad.addColorStop(1, '#111');
+  ctx.fillStyle = roadGrad;
+  ctx.fillRect(0, roadTop, W, roadBot - roadTop);
+
+  // Road edge lines
+  ctx.strokeStyle = '#ffd700';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(0, roadTop + 3); ctx.lineTo(W, roadTop + 3);
+  ctx.stroke();
+
+  // Dashed center line - scrolling
+  const dashLen = 60, gapLen = 40;
+  const period = dashLen + gapLen;
+  const offset = (t * 4.5) % period;
+  const laneY = H * 0.84;
+  ctx.strokeStyle = '#ffe080';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([dashLen, gapLen]);
+  ctx.lineDashOffset = -offset;
+  ctx.beginPath();
+  ctx.moveTo(0, laneY); ctx.lineTo(W, laneY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Road shoulder white line
+  ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, H * 0.97); ctx.lineTo(W, H * 0.97);
+  ctx.stroke();
+
+  // Kerb
+  ctx.fillStyle = '#888';
+  ctx.fillRect(0, roadTop, W, 6);
+
+  // Pavement/sidewalk
+  const pavGrad = ctx.createLinearGradient(0, roadTop - 60, 0, roadTop);
+  pavGrad.addColorStop(0, '#3a3530');
+  pavGrad.addColorStop(1, '#2e2a26');
+  ctx.fillStyle = pavGrad;
+  ctx.fillRect(0, roadTop - 60, W, 62);
+
+  // Pavement cracks/tiles
+  ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+  ctx.lineWidth = 1;
+  const tileW = 80;
+  const tileOff = (t * 4.5) % tileW;
+  for (let x = -tileW + tileOff; x < W + tileW; x += tileW) {
+    ctx.beginPath();
+    ctx.moveTo(x, roadTop - 60);
+    ctx.lineTo(x, roadTop);
+    ctx.stroke();
+  }
+}
+
+// Shadow beneath characters
+function drawShadow(x, y, w) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2, w, 8, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.fill();
+  ctx.restore();
+}
+
+// ---- PERSON DRAWING ----
+function drawPerson(px, py, phase) {
+  const sc = 1.0;
+  const s = phase; // walk phase 0..2PI
+  const bobY = Math.abs(Math.sin(s * 2)) * -4; // body bob
+
+  ctx.save();
+  ctx.translate(px, py + bobY);
+
+  // Limb swing angles (energetic walk)
+  const legSwing = Math.sin(s) * 0.55;
+  const armSwing = -Math.sin(s) * 0.55;
+  const leanFwd = 0.08; // slight forward lean
+
+  // ---- LEGS ----
+  drawLeg(0, 0, legSwing, 1, sc);    // left leg
+  drawLeg(0, 0, -legSwing, -1, sc);  // right leg
+
+  // ---- BODY / TORSO ----
+  ctx.save();
+  ctx.rotate(leanFwd);
+  // Jacket body
+  ctx.beginPath();
+  ctx.moveTo(-14, -86);
+  ctx.bezierCurveTo(-18, -60, -20, -40, -18, -20);
+  ctx.lineTo(18, -20);
+  ctx.bezierCurveTo(20, -40, 18, -60, 14, -86);
+  ctx.closePath();
+  ctx.fillStyle = '#2c4a8c';
+  ctx.fill();
+  ctx.strokeStyle = '#1e3366';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Jacket lapels
+  ctx.beginPath();
+  ctx.moveTo(0, -86);
+  ctx.lineTo(-7, -68);
+  ctx.lineTo(0, -72);
+  ctx.lineTo(7, -68);
+  ctx.closePath();
+  ctx.fillStyle = '#f5deb3';
+  ctx.fill();
+
+  // Shirt collar
+  ctx.beginPath();
+  ctx.moveTo(-5, -88);
+  ctx.lineTo(0, -94);
+  ctx.lineTo(5, -88);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+
+  // Belt
+  ctx.fillStyle = '#4a3000';
+  ctx.fillRect(-18, -22, 36, 5);
+  ctx.fillStyle = '#888';
+  ctx.fillRect(-4, -23, 8, 7);
+
+  // ---- ARMS ----
+  drawArm(leanFwd, armSwing, 1, s, sc);   // left arm (near)
+  drawArm(leanFwd, -armSwing, -1, s, sc); // right arm (far)
+
+  // ---- HEAD ----
+  ctx.rotate(leanFwd);
+  // Neck
+  ctx.fillStyle = '#c8956a';
+  ctx.fillRect(-5, -96, 10, 12);
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(0, -112, 15, 18, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#c8956a';
+  ctx.fill();
+  ctx.strokeStyle = '#a07040';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // Hair
+  ctx.beginPath();
+  ctx.ellipse(0, -124, 15, 8, 0, 0, Math.PI);
+  ctx.fillStyle = '#2a1a00';
+  ctx.fill();
+  ctx.fillRect(-15, -124, 30, 10);
+  // Ear
+  ctx.beginPath();
+  ctx.ellipse(14, -112, 4, 6, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#c8956a';
+  ctx.fill();
+  // Eye (facing right so we see profile slightly)
+  ctx.beginPath();
+  ctx.ellipse(8, -113, 3.5, 3, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(9, -113, 2, 2, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#333';
+  ctx.fill();
+  // Eyebrow
+  ctx.beginPath();
+  ctx.moveTo(5, -118);
+  ctx.lineTo(12, -117);
+  ctx.strokeStyle = '#2a1a00';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // Nose
+  ctx.beginPath();
+  ctx.moveTo(13, -110);
+  ctx.bezierCurveTo(17, -110, 16, -106, 13, -107);
+  ctx.strokeStyle = '#a07040';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Mouth (slight smile - brisk walk)
+  ctx.beginPath();
+  ctx.arc(10, -105, 4, 0.2, Math.PI * 0.8);
+  ctx.strokeStyle = '#805030';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Cap
+  ctx.beginPath();
+  ctx.ellipse(0, -127, 16, 7, -0.1, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a3a6e';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(0, -128, 16, 6, -0.1, 0, Math.PI * 2);
+  ctx.fillStyle = '#2c5aaa';
+  ctx.fill();
+  ctx.beginPath(); // brim
+  ctx.ellipse(9, -124, 8, 3, 0.3, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a3a6e';
+  ctx.fill();
+
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawLeg(x, y, swing, side, sc) {
+  ctx.save();
+  ctx.translate(x + side * 6, y - 20);
+  ctx.rotate(swing);
+  // Thigh
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  const kneeX = Math.sin(swing) * 22;
+  const kneeY = 36;
+  ctx.lineTo(kneeX, kneeY);
+  ctx.strokeStyle = '#1a2a50';
+  ctx.lineWidth = 11;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  // Shin
+  ctx.save();
+  ctx.translate(kneeX, kneeY);
+  const shinSwing = -swing * 0.5 + (Math.max(0, swing) * 0.5);
+  ctx.rotate(shinSwing * side);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 36);
+  ctx.strokeStyle = '#1a2a50';
+  ctx.lineWidth = 9;
+  ctx.stroke();
+  // Trousers crease
+  ctx.strokeStyle = '#243a70';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Shoe
+  ctx.save();
+  ctx.translate(0, 36);
+  ctx.beginPath();
+  ctx.moveTo(-6, 0);
+  ctx.bezierCurveTo(-6, 6, 12, 8, 16, 6);
+  ctx.bezierCurveTo(18, 5, 16, 0, 12, 0);
+  ctx.closePath();
+  ctx.fillStyle = '#1a0a00';
+  ctx.fill();
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Sole highlight
+  ctx.beginPath();
+  ctx.moveTo(-4, 6);
+  ctx.bezierCurveTo(2, 8, 10, 8, 14, 6);
+  ctx.strokeStyle = '#555';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+  ctx.restore();
+  ctx.restore();
+}
+
+function drawArm(leanFwd, swing, side, phase, sc) {
+  ctx.save();
+  ctx.rotate(leanFwd);
+  ctx.translate(side * 16, -76);
+  ctx.rotate(swing);
+  // Upper arm
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  const elbowX = Math.sin(swing) * 10;
+  ctx.lineTo(elbowX, 28);
+  ctx.strokeStyle = '#2c4a8c';
+  ctx.lineWidth = 10;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  // Forearm
+  ctx.save();
+  ctx.translate(elbowX, 28);
+  const foreSwing = swing * 0.4 + 0.2;
+  ctx.rotate(foreSwing);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 26);
+  ctx.strokeStyle = '#c8956a';
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  // Hand
+  ctx.beginPath();
+  ctx.ellipse(0, 28, 5, 6, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#c8956a';
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+// Return the leash hand position for the person
+function getPersonHandPos(px, py, phase) {
+  const bobY = Math.abs(Math.sin(phase * 2)) * -4;
+  const leanFwd = 0.08;
+  const armSwing = -Math.sin(phase) * 0.55;
+  // left arm (side = 1), forearm position approx
+  const upperArmEnd = {
+    x: px + 16 + Math.sin(armSwing) * 10,
+    y: py + bobY - 76 + 28
+  };
+  return {
+    x: upperArmEnd.x + Math.sin(armSwing * 0.4 + 0.2) * 0,
+    y: upperArmEnd.y + 26
+  };
+}
+
+// ---- DOG DRAWING ----
+function drawDog(dx, dy, phase) {
+  const s = phase;
+  const legPhase = s * 1.05;
+  const bobY = Math.abs(Math.sin(legPhase * 2)) * -2.5;
+  const tailWag = Math.sin(t * 0.08) * 0.6;
+
+  ctx.save();
+  ctx.translate(dx, dy + bobY);
+
+  // Body
+  ctx.beginPath();
+  ctx.ellipse(0, -18, 30, 16, 0.12, 0, Math.PI * 2);
+  ctx.fillStyle = '#c87820';
+  ctx.fill();
+  ctx.strokeStyle = '#8a5010';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Belly lighter patch
+  ctx.beginPath();
+  ctx.ellipse(4, -12, 20, 9, 0.12, 0, Math.PI * 2);
+  ctx.fillStyle = '#e8a840';
+  ctx.fill();
+
+  // Tail (curves up and wags)
+  ctx.save();
+  ctx.translate(28, -22);
+  ctx.rotate(tailWag - 0.2);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(8, -8, 14, -18, 10, -28);
+  ctx.strokeStyle = '#c87820';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.strokeStyle = '#e8a840';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  ctx.restore();
+
+  // ---- DOG LEGS ----
+  const flLeg = Math.sin(legPhase) * 0.5;
+  const frLeg = -Math.sin(legPhase) * 0.5;
+  const rlLeg = -Math.sin(legPhase) * 0.5;
+  const rrLeg = Math.sin(legPhase) * 0.5;
+  drawDogLeg(-18, -6, flLeg, 1);
+  drawDogLeg(-18, -6, frLeg, -1);
+  drawDogLeg(14, -6, rlLeg, 1);
+  drawDogLeg(14, -6, rrLeg, -1);
+
+  // Neck
+  ctx.beginPath();
+  ctx.moveTo(-20, -28);
+  ctx.bezierCurveTo(-28, -38, -32, -46, -28, -52);
+  ctx.strokeStyle = '#c87820';
+  ctx.lineWidth = 14;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.strokeStyle = '#e8a840';
+  ctx.lineWidth = 10;
+  ctx.stroke();
+
+  // Head
+  ctx.beginPath();
+  ctx.ellipse(-30, -56, 16, 14, -0.2, 0, Math.PI * 2);
+  ctx.fillStyle = '#c87820';
+  ctx.fill();
+  ctx.strokeStyle = '#8a5010';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Snout
+  ctx.beginPath();
+  ctx.ellipse(-40, -52, 10, 7, 0.1, 0, Math.PI * 2);
+  ctx.fillStyle = '#d48a28';
+  ctx.fill();
+  // Nose
+  ctx.beginPath();
+  ctx.ellipse(-47, -52, 5, 4, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a0a00';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-46, -53, 1.5, 1, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.fill();
+
+  // Eye
+  ctx.beginPath();
+  ctx.ellipse(-34, -60, 4, 4.5, -0.1, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a0a00';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-33, -61, 1.5, 1.5, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.6)';
+  ctx.fill();
+
+  // Ear - floppy
+  const earWag = Math.sin(t * 0.06) * 0.15;
+  ctx.save();
+  ctx.translate(-24, -64);
+  ctx.rotate(earWag - 0.3);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-6, 10, -8, 20, -4, 28);
+  ctx.bezierCurveTo(2, 30, 8, 22, 6, 10);
+  ctx.bezierCurveTo(4, 4, 2, 0, 0, 0);
+  ctx.fillStyle = '#8a5010';
+  ctx.fill();
+  ctx.restore();
+
+  // Collar
+  ctx.beginPath();
+  ctx.arc(-28, -48, 10, -Math.PI * 0.8, Math.PI * 0.1);
+  ctx.strokeStyle = '#cc2200';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  // Collar tag
+  ctx.beginPath();
+  ctx.arc(-28, -38, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffd700';
+  ctx.fill();
+
+  ctx.restore();
+}
+
+function drawDogLeg(bx, by, swing, side) {
+  ctx.save();
+  ctx.translate(bx, by);
+  const sideOff = side * 5;
+  ctx.beginPath();
+  ctx.moveTo(sideOff, 0);
+  const kneeX = sideOff + Math.sin(swing) * 10;
+  ctx.lineTo(kneeX, 16);
+  ctx.strokeStyle = '#c87820';
+  ctx.lineWidth = 7;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.save();
+  ctx.translate(kneeX, 16);
+  const shinSwing = -swing * 0.6;
+  ctx.rotate(shinSwing);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, 16);
+  ctx.strokeStyle = '#d48a28';
+  ctx.lineWidth = 5;
+  ctx.stroke();
+  // Paw
+  ctx.beginPath();
+  ctx.ellipse(0, 18, 5, 3, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#8a5010';
+  ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+// Return the collar/leash attach point on the dog
+function getDogCollarPos(dx, dy, phase) {
+  const bobY = Math.abs(Math.sin(phase * 1.05 * 2)) * -2.5;
+  return {
+    x: dx - 28,
+    y: dy + bobY - 48
+  };
+}
+
+// Draw dynamic leash with catenary-like droop
+function drawLeash(handPos, collarPos) {
+  const dx = collarPos.x - handPos.x;
+  const dy = collarPos.y - handPos.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const slack = Math.max(0, 60 - dist * 0.3);
+  const midX = (handPos.x + collarPos.x) * 0.5;
+  const midY = (handPos.y + collarPos.y) * 0.5 + slack * 0.8 + 8;
+
+  ctx.beginPath();
+  ctx.moveTo(handPos.x, handPos.y);
+  ctx.quadraticCurveTo(midX, midY, collarPos.x, collarPos.y);
+  ctx.strokeStyle = '#cc2200';
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  // Highlight on leash
+  ctx.beginPath();
+  ctx.moveTo(handPos.x, handPos.y);
+  ctx.quadraticCurveTo(midX, midY - 1, collarPos.x, collarPos.y);
+  ctx.strokeStyle = 'rgba(255,100,80,0.3)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+// Lamp posts
+const lampPosts = Array.from({length: 5}, (_, i) => ({ x: i / 5, phase: i }));
+
+function drawLampPosts() {
+  const baseY = H * 0.72;
+  const scroll = (t * 0.0022) % (1 / 5);
+  lampPosts.forEach((lp, i) => {
+    const xBase = (lp.x - t * 0.0022) % 1;
+    const x = ((xBase % 1) + 1) % 1 * W;
+    if (x < -30 || x > W + 30) return;
+    // Pole
+    ctx.fillStyle = '#444';
+    ctx.fillRect(x - 4, baseY - 180, 8, 182);
+    // Arm
+    ctx.beginPath();
+    ctx.moveTo(x + 4, baseY - 175);
+    ctx.bezierCurveTo(x + 4, baseY - 195, x + 28, baseY - 200, x + 30, baseY - 195);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    // Lamp head
+    ctx.fillStyle = '#666';
+    ctx.fillRect(x + 22, baseY - 205, 20, 12);
+    // Light glow
+    const glow = ctx.createRadialGradient(x + 32, baseY - 196, 0, x + 32, baseY - 196, 40);
+    glow.addColorStop(0, 'rgba(255,230,120,0.45)');
+    glow.addColorStop(0.5, 'rgba(255,200,60,0.12)');
+    glow.addColorStop(1, 'rgba(255,200,60,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 10, baseY - 240, 80, 80);
+    // Lamp glass
+    ctx.beginPath();
+    ctx.ellipse(x + 32, baseY - 196, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffe080';
+    ctx.fill();
+  });
+}
+
+// ---- MAIN RENDER ----
+function render() {
+  t++;
+  ctx.clearRect(0, 0, W, H);
+
+  drawSky();
+  drawStars();
+  drawSun();
+  drawClouds();
+  drawSkyline();
+  drawTrees();
+  drawGround();
+  drawLampPosts();
+
+  // Characters positioned on pavement
+  const baseY = H * 0.72 - 12; // feet on pavement
+  const personX = W * 0.45;
+  const personY = baseY;
+  const dogX = personX - 140; // dog ahead and to left
+  const dogY = baseY;
+
+  const personPhase = t * 0.065;
+  const dogPhase = t * 0.065;
+
+  drawShadow(dogX - 10, dogY, 32);
+  drawShadow(personX, personY, 22);
+
+  drawDog(dogX, dogY, dogPhase);
+  drawPerson(personX, personY, personPhase);
+
+  const handPos = getPersonHandPos(personX, personY, personPhase);
+  const collarPos = getDogCollarPos(dogX, dogY, dogPhase);
+  drawLeash(handPos, collarPos);
+
+  requestAnimationFrame(render);
+}
+
+render();
+</script>
+</body>
+</html>
