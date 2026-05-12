@@ -173,9 +173,13 @@ Uses turbo6 K for low-entropy layers via entropy-guided Path B. Saves additional
 
 256K context with book-calibrated entropy profile. The production default — 22% KV memory savings with no quality loss (11/11 CodeNeedle, 15/16 jQuery).
 
+> Qwen3.6 35B A3B supports **vision** (multimodal). Include `--mmproj mmproj-Qwen3.6-35B-A3B-F16.gguf --no-mmproj-offload` for vision tasks.
+
 ```bash
 ./build/bin/llama-server \
   -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  --mmproj ~/AI/models/mmproj-Qwen3.6-35B-A3B-F16.gguf \
+  --no-mmproj-offload \
   --alias qwen3.6-35b-a3b \
   -ngl 99 \
   --n-cpu-moe 39 \
@@ -188,7 +192,7 @@ Uses turbo6 K for low-entropy layers via entropy-guided Path B. Saves additional
   --entropy-prune-ratio 2.0
 ```
 
-> **512K context?** Use `--n-cpu-moe 40` instead of 39.
+> **512K context?** Use `--n-cpu-moe 40` instead of 39 and add `--override-kv qwen35moe.context_length=int:524288` to override the server's training-context cap. The model's architecture prefix is `qwen35moe` (confirmed from GGUF metadata).
 
 ### Qwen3.6 35B A3B MoE — turbo6 low-K memory-saving
 
@@ -197,6 +201,8 @@ Uses turbo6 K for low-entropy attention layers. Saves ~26% KV memory with only m
 ```bash
 ./build/bin/llama-server \
   -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  --mmproj ~/AI/models/mmproj-Qwen3.6-35B-A3B-F16.gguf \
+  --no-mmproj-offload \
   --alias qwen3.6-35b-a3b \
   -ngl 99 \
   --n-cpu-moe 39 \
@@ -208,6 +214,32 @@ Uses turbo6 K for low-entropy attention layers. Saves ~26% KV memory with only m
   --entropy-profile entropy_profile_qwen_book.json \
   --entropy-prune-ratio 2.0 \
   --entropy-low-k-type turbo6
+```
+
+### Qwen3.6 35B A3B MoE — 512K context (extended)
+
+Extends the model beyond its 262144 training context using the entropy profile and metadata override. The server caps slot context to the training context unless overridden. Architecture prefix is `qwen35moe` (check your model with `--override-kv`).
+
+- **Prefill:** ~251 t/s at 420K prompt
+- **Generation:** ~8.2 t/s at 512K context
+- **KV cache:** ~2,765 MiB (entropy ratio 2.0)
+
+```bash
+./build/bin/llama-server \
+  -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  --mmproj ~/AI/models/mmproj-Qwen3.6-35B-A3B-F16.gguf \
+  --no-mmproj-offload \
+  --alias qwen3.6-35b-a3b \
+  -ngl 99 \
+  --n-cpu-moe 40 \
+  --ctx-size 524288 \
+  --flash-attn on \
+  -ctk q8_0 \
+  -ctv turbo3_0 \
+  --reasoning off \
+  --entropy-profile entropy_profile_qwen_book.json \
+  --entropy-prune-ratio 2.0 \
+  --override-kv qwen35moe.context_length=int:524288
 ```
 
 ### Qwen3-VL 30B A3B — entropy-guided Path B
@@ -294,11 +326,26 @@ Validated on `Ternary-Bonsai-8B-Q2_0.gguf` with various TurboKV configs (all `--
 
 ### Qwen3.6 35B A3B performance
 
-Validated with `Qwen3.6-35B-A3B-Q5_K_M.gguf`, CPU MoE offload, 256k context setting, and TurboKV:
+Validated with `Qwen3.6-35B-A3B-Q5_K_M.gguf`, CPU MoE offload (--n-cpu-moe 39-40), entropy-guided Path B at ratio 2.0, TurboKV (q8 K + turbo3 V), flash-attn on.
 
-- Short 256k-context run: prompt about `109 tok/s`, generation about `45 tok/s`.
-- Longer local run held around `43 tok/s`, matching or slightly exceeding the older dedicated TurboQuant fork in this environment.
-- After the CUDA prefill fix, `llama-bench` smoke results with CPU MoE experts were around `pp512 443 tok/s`, `tg32 42 tok/s`; `pp4096 429 tok/s`, `tg16 42 tok/s`.
+**Speed benchmarks (RTX 3070 Ti 8GB, Ryzen 5 3800X, 32 GB DDR4-3600):**
+
+| Prompt | Context | Prefill (t/s) | Generation (t/s) | Notes |
+|--------|---------|:-------------:|:----------------:|-------|
+| 1K | 4K | 326.5 | 42.0 | Short prompt baseline |
+| 8K | 16K | 385.8 | 39.5 | Sweet spot for speed |
+| 32K | 64K | 386.2 | 33.3 | Steady prefill |
+| 100K | 128K | 362.6 | 22.3 | Realistic long-doc |
+| ~420K | 512K* | 251.1 | 8.2 | Extended with override-kv |
+
+> *512K context requires `--override-kv qwen35moe.context_length=int:524288` to bypass the server's training-context cap. Uses `--n-cpu-moe 40`. Prefill speed drops at 512K due to larger compute graph overhead. Generation slows as O(n²) attention cost grows with context size.
+
+**KV cache memory (entropy Path B, ratio 2.0):**
+
+| Context | KV Cache | VRAM Free |
+|---------|:--------:|:---------:|
+| 256K | ~1,600 MiB | ~2 GB |
+| 512K | ~2,765 MiB | ~1 GB |
 
 ### CodeNeedle quality testing
 
