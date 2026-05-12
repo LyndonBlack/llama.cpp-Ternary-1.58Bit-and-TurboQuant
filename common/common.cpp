@@ -6,6 +6,7 @@
 #include "fit.h"
 #include "log.h"
 #include "llama.h"
+#include "llama-entropy.h"
 #include "sampling.h"
 #include "unicode.h"
 
@@ -1230,6 +1231,58 @@ common_init_result::common_init_result(common_params & params) :
     if (params.sampling.backend_sampling) {
         cparams.samplers   = pimpl->samplers_seq_config.data();
         cparams.n_samplers = pimpl->samplers_seq_config.size();
+    }
+
+    // Load entropy profile and build per-layer K type callback (if not already set by caller)
+    if (!params.entropy_layer_k_cb && !params.entropy_profile_path.empty()) {
+        auto ep = std::make_shared<llama_entropy_profile>();
+        if (ep->load(params.entropy_profile_path) && ep->mean_entropy > 0.0f && !ep->heads.empty()) {
+            // Compute per-layer mean entropy
+            std::vector<double> layer_mean_entropy(ep->n_layers, 0.0);
+            std::vector<int> layer_count(ep->n_layers, 0);
+            for (const auto & h : ep->heads) {
+                if (h.layer >= 0 && h.layer < ep->n_layers) {
+                    layer_mean_entropy[h.layer] += h.entropy;
+                    layer_count[h.layer]++;
+                }
+            }
+            for (int i = 0; i < ep->n_layers; ++i) {
+                if (layer_count[i] > 0) layer_mean_entropy[i] /= layer_count[i];
+            }
+
+            // Median threshold
+            std::vector<double> sorted = layer_mean_entropy;
+            std::sort(sorted.begin(), sorted.end());
+            const double median = sorted[sorted.size() / 2];
+
+            // Parse low-entropy K type
+            ggml_type low_k_type = GGML_TYPE_Q8_0;
+            const std::string & kt = params.entropy_low_k_type;
+            if (kt == "turbo2_0" || kt == "turbo2")       low_k_type = GGML_TYPE_TURBO2_0;
+            else if (kt == "turbo4_0" || kt == "turbo4")  low_k_type = GGML_TYPE_TURBO4_0;
+            else if (kt == "turbo6_0" || kt == "turbo6")  low_k_type = GGML_TYPE_TURBO6_0;
+            else if (kt == "q8_0" || kt == "q8")         low_k_type = GGML_TYPE_Q8_0;
+            else LOG_WRN("%s: unknown --entropy-low-k-type '%s', using q8_0\n", __func__, kt.c_str());
+
+            // Smooth threshold factor
+            const float cr = std::max(1.0f, params.entropy_prune_ratio);
+            const double threshold_factor = 0.8 + (cr - 1.0) * 0.3;
+            const double threshold = median * threshold_factor;
+
+            int n_low = 0;
+            for (auto e : layer_mean_entropy) if (e < threshold) n_low++;
+
+            LOG_INF("%s: entropy profile loaded (%d heads, mean=%.3f, %d low-entropy layers)\n",
+                    __func__, (int)ep->heads.size(), ep->mean_entropy, n_low);
+
+            params.entropy_layer_k_cb = [lme = std::move(layer_mean_entropy),
+                                          thr = threshold,
+                                          low = low_k_type](int32_t il) -> ggml_type {
+                return (il < (int32_t)lme.size() && lme[il] < thr) ? low : GGML_TYPE_Q8_0;
+            };
+        } else {
+            LOG_WRN("%s: failed to load entropy profile '%s'\n", __func__, params.entropy_profile_path.c_str());
+        }
     }
 
     // Set per-layer K type callback from entropy profile

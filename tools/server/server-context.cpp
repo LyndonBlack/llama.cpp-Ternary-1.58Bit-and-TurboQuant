@@ -696,68 +696,10 @@ private:
 
         params_base = params;
 
-        // Entropy-guided KV cache optimization: use the entropy profile to set
-        // per-layer K cache types (mixed precision) and reduce context size
+        // Entropy-guided KV cache optimization is now handled by common.cpp
+        // (profile loading and per-layer K type callback are set up automatically)
         if (!params_base.entropy_profile_path.empty()) {
-            auto ep_ptr = std::make_shared<llama_entropy_profile>();
-            if (ep_ptr->load(params_base.entropy_profile_path) && ep_ptr->mean_entropy > 0.0f && !ep_ptr->heads.empty()) {
-                // Compute per-layer mean entropy for the mixed-precision callback
-                std::vector<double> layer_mean_entropy(ep_ptr->n_layers, 0.0);
-                std::vector<int> layer_count(ep_ptr->n_layers, 0);
-                for (const auto & h : ep_ptr->heads) {
-                    if (h.layer >= 0 && h.layer < ep_ptr->n_layers) {
-                        layer_mean_entropy[h.layer] += h.entropy;
-                        layer_count[h.layer]++;
-                    }
-                }
-                for (int i = 0; i < ep_ptr->n_layers; ++i) {
-                    if (layer_count[i] > 0) layer_mean_entropy[i] /= layer_count[i];
-                }
-
-                // Find median layer entropy to use as split threshold
-                std::vector<double> sorted = layer_mean_entropy;
-                std::sort(sorted.begin(), sorted.end());
-                const double median = sorted[sorted.size() / 2];
-
-                // Parse the low-entropy K type from the CLI flag
-                ggml_type low_k_type = GGML_TYPE_TURBO4_0; // default
-                const std::string & kt = params_base.entropy_low_k_type;
-                if (kt == "turbo2_0" || kt == "turbo2")       low_k_type = GGML_TYPE_TURBO2_0;
-                else if (kt == "turbo4_0" || kt == "turbo4")  low_k_type = GGML_TYPE_TURBO4_0;
-                else if (kt == "turbo6_0" || kt == "turbo6")  low_k_type = GGML_TYPE_TURBO6_0;
-                else if (kt == "q8_0" || kt == "q8")         low_k_type = GGML_TYPE_Q8_0;
-                else SRV_WRN("unknown --entropy-low-k-type '%s', using turbo4_0\n", kt.c_str());
-
-                // Smooth threshold factor: continuous function of prune ratio
-                // cr=1.0 -> 0.8, cr=1.5 -> 0.95, cr=2.0 -> 1.1, cr=3.0 -> 1.4
-                const float cr = std::max(1.0f, params_base.entropy_prune_ratio);
-                const double threshold_factor = 0.8 + (cr - 1.0) * 0.3;
-                const double threshold = median * threshold_factor;
-
-                // Count low-entropy layers before the callback captures the vector
-                int n_low = 0;
-                for (auto e : layer_mean_entropy) if (e < threshold) n_low++;
-
-                // Create per-layer K type callback
-                params_base.entropy_layer_k_cb = [lme = std::move(layer_mean_entropy),
-                                                   thr = threshold,
-                                                   low = low_k_type](int32_t il) -> ggml_type {
-                    if (il < 0 || il >= (int32_t)lme.size()) return GGML_TYPE_COUNT;
-                    if (lme[il] < thr) {
-                        return low;
-                    }
-                    return GGML_TYPE_Q8_0;
-                };
-
-                SRV_INF("entropy profile: %d layers, median=%.3f, thr=%.3f (cr=%.1f), low layers get %s (%d/%d = %.0f%%)\n",
-                        ep_ptr->n_layers, median, threshold, cr,
-                        ggml_type_name(low_k_type), n_low, ep_ptr->n_layers,
-                        100.0 * n_low / ep_ptr->n_layers);
-
-                // Path B only: keep full requested context, save memory via per-layer mixed precision
-                // Context size reduction (Path A) is removed — it was confusing (reported context
-                // didn't match requested). If you want both, pass a smaller --ctx-size explicitly.
-            }
+            SRV_INF("entropy profile specified: %s (loaded by common layer)\n", params_base.entropy_profile_path.c_str());
         }
 
         llama_init = common_init_from_params(params_base);

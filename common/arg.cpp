@@ -4062,7 +4062,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             params.entropy_profile_path = value;
         }
-    ).set_examples({LLAMA_EXAMPLE_SERVER}));
+    ).set_examples({LLAMA_EXAMPLE_COMMON}));
 
     add_opt(common_arg(
         {"--entropy-prune-ratio"}, "FLOAT",
@@ -4070,7 +4070,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             params.entropy_prune_ratio = std::stof(value);
         }
-    ).set_examples({LLAMA_EXAMPLE_SERVER}));
+    ).set_examples({LLAMA_EXAMPLE_COMMON}));
 
     add_opt(common_arg(
         {"--entropy-low-k-type"}, "TYPE",
@@ -4078,7 +4078,7 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
         [](common_params & params, const std::string & value) {
             params.entropy_low_k_type = value;
         }
-    ).set_examples({LLAMA_EXAMPLE_SERVER}));
+    ).set_examples({LLAMA_EXAMPLE_COMMON}));
 
     return ctx_arg;
 }
