@@ -6,9 +6,19 @@ Record of prompts used for qualitative assessment of entropy-guided KV cache per
 
 **Model:** Qwen3.6 35B A3B (Q5_K_M) — Entropy Path B, ratio 2.0, 256K context
 
-**Result:** First attempt: visually rich scene with articulated figures, good anatomy, but animation loop failed to start (one-line bug). Second attempt: ✅ fully working.
+**Result:** First attempt: visually rich scene with articulated figures, good anatomy, but animation loop failed to start (one-line bug). Second attempt as a clean re-prompt: ✅ animated correctly on first try — the model resolved the issue without being told about it.
 
 **Comparison:** Meets or exceeds ChatGPT and Gemini output for this popular single-file HTML animation challenge.
+
+**Hardware & performance:**
+- CPU: AMD Ryzen 5 3800X (8c/16t)
+- RAM: 32 GB DDR4 @ 3600 MHz
+- GPU: RTX 3070 Ti 8 GB
+- Model: Qwen3.6 35B A3B (Q5_K_M), CPU MoE offload
+- KV config: Entropy Path B, ratio 2.0, q8 K + turbo3 V, 256K context
+- Thinking/reasoning time: **11.4 seconds**
+- Output time: **5 min 23 sec** (10,866 tokens)
+- Generation speed: started at ~39 t/s, ended at ~33.6 t/s (averaged)
 
 ### Full prompt
 
