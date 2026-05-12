@@ -134,20 +134,9 @@ cmake --build build --target llama-cli llama-server llama-bench -j8
 
 Older local builds also used static libstdc++/libgcc linker flags to avoid local CUDA/libstdc++ mismatches. If your toolchain is clean, the command above is preferred.
 
-### Ternary Bonsai server — quality-oriented TurboKV
+### Ternary Bonsai server — entropy-guided Path B (recommended)
 
-```bash
-./build/bin/llama-server \
-  -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf \
-  --alias ternary-bonsai-q2 \
-  -ngl 99 \
-  --ctx-size 32768 \
-  --flash-attn on \
-  -ctk q8_0 \
-  -ctv turbo3_0
-```
-
-### Ternary Bonsai server — memory-saving K/V compression path (turbo6)
+Book-calibrated entropy profile at full 65K context. Uses Path B per-layer mixed precision.
 
 ```bash
 ./build/bin/llama-server \
@@ -156,52 +145,123 @@ Older local builds also used static libstdc++/libgcc linker flags to avoid local
   -ngl 99 \
   --ctx-size 65536 \
   --flash-attn on \
-  -ctk turbo6_0 \
-  -ctv turbo3_0
+  -ctk q8_0 \
+  -ctv turbo3_0 \
+  --entropy-profile entropy_profile_bonsai_book.json \
+  --entropy-prune-ratio 2.0
 ```
 
-### Ternary Bonsai server — maximum tested K/V compression path
+### Ternary Bonsai server — memory-saving (turbo6 low-K + entropy)
+
+Uses turbo6 K for low-entropy layers via entropy-guided Path B. Saves additional VRAM while protecting retrieval-sensitive layers.
 
 ```bash
 ./build/bin/llama-server \
   -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf \
   --alias ternary-bonsai-q2 \
   -ngl 99 \
-  --ctx-size 32768 \
+  --ctx-size 65536 \
   --flash-attn on \
-  -ctk turbo4_0 \
-  -ctv turbo3_0
+  -ctk q8_0 \
+  -ctv turbo3_0 \
+  --entropy-profile entropy_profile_bonsai_book.json \
+  --entropy-prune-ratio 2.0 \
+  --entropy-low-k-type turbo6
 ```
 
-### Large Qwen MoE long-context — production default (q8 K)
+### Qwen3.6 35B A3B MoE — entropy-guided Path B (recommended)
+
+256K context with book-calibrated entropy profile. The production default — 22% KV memory savings with no quality loss (11/11 CodeNeedle, 15/16 jQuery).
 
 ```bash
-./build/bin/llama-cli \
+./build/bin/llama-server \
   -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  --alias qwen3.6-35b-a3b \
   -ngl 99 \
-  --n-cpu-moe 35 \
+  --n-cpu-moe 39 \
+  --ctx-size 256000 \
   --flash-attn on \
   -ctk q8_0 \
   -ctv turbo3_0 \
   --reasoning off \
-  -c 200000
+  --entropy-profile entropy_profile_qwen_book.json \
+  --entropy-prune-ratio 2.0
 ```
 
-### Large Qwen MoE long-context — memory-saving (turbo6 K)
+> **512K context?** Use `--n-cpu-moe 40` instead of 39.
+
+### Qwen3.6 35B A3B MoE — turbo6 low-K memory-saving
+
+Uses turbo6 K for low-entropy attention layers. Saves ~26% KV memory with only minor generative trade-off. Verified passes all CodeNeedle retrieval gates.
+
+```bash
+./build/bin/llama-server \
+  -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
+  --alias qwen3.6-35b-a3b \
+  -ngl 99 \
+  --n-cpu-moe 39 \
+  --ctx-size 256000 \
+  --flash-attn on \
+  -ctk q8_0 \
+  -ctv turbo3_0 \
+  --reasoning off \
+  --entropy-profile entropy_profile_qwen_book.json \
+  --entropy-prune-ratio 2.0 \
+  --entropy-low-k-type turbo6
+```
+
+### Qwen3-VL 30B A3B — entropy-guided Path B
+
+Vision MoE with book-calibrated entropy profile. Note: requires `--mmproj` for vision tasks.
+
+```bash
+./build/bin/llama-server \
+  -m ~/AI/models/Qwen_Qwen3-VL-30B-A3B-Instruct-Q5_K_L.gguf \
+  --mmproj ~/AI/models/mmproj-Qwen_Qwen3-VL-30B-A3B-Instruct-f16.gguf \
+  --alias qwen3-vl-30b-a3b \
+  -ngl 99 \
+  --n-cpu-moe 39 \
+  --no-mmproj-offload \
+  --ctx-size 128000 \
+  --flash-attn on \
+  -ctk q8_0 \
+  -ctv turbo3_0 \
+  --entropy-profile entropy_profile_qwen3vl_book.json \
+  --entropy-prune-ratio 2.0
+```
+
+### Qwen3.6 35B A3B — CLI for batch/generation tasks
 
 ```bash
 ./build/bin/llama-cli \
   -m ~/AI/models/Qwen3.6-35B-A3B-Q5_K_M.gguf \
   -ngl 99 \
   --n-cpu-moe 35 \
+  --ctx-size 200000 \
   --flash-attn on \
-  -ctk turbo6_0 \
+  -ctk q8_0 \
   -ctv turbo3_0 \
   --reasoning off \
-  -c 200000
+  --entropy-profile entropy_profile_qwen_book.json \
+  --entropy-prune-ratio 2.0
 ```
 
 For Qwen reasoning models, `--reasoning off` is recommended for benchmark harnesses such as CodeNeedle unless thinking output is explicitly desired.
+
+### Self-calibration (creating your own entropy profile)
+
+Run the calibration tool with a long-form text file to generate a model-specific entropy profile:
+
+```bash
+./build/bin/llama-entropy-calibrate \
+  -m ~/AI/models/Your-Model.gguf \
+  --cal-text /path/to/reference_text.txt \
+  --flash-attn on -ngl 99 \
+  -ctk f16 -ctv f16 -c 512
+# Produces entropy_profile.json — pass to --entropy-profile
+```
+
+> Calibration requires flash-attn to be temporarily disabled internally. Use f16 KV types and a context size that fits your GPU's compute buffer budget. For large models (>15B), reduce `-ngl` to free VRAM.
 
 ## Testing and benchmark summary
 
