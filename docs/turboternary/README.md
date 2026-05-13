@@ -149,12 +149,41 @@ llama-server \
 
 ### Bonsai 8B Q2.0 (lightweight test model)
 ```bash
-llama-cli -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf \
-  -p "Your prompt here" -n 4096 -c 65535 \
-  -s 12345 --temp 0 --top-k 1 --top-p 1 \
-  --flash-attn on -ngl 40 \
-  -ctk q8_0 -ctv turbo3_0
+llama-server -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf \
+  --alias ternary-bonsai-q2 -ngl 99 --ctx-size 65535 \
+  --flash-attn on -ctk q8_0 -ctv turbo3_0 \
+  --entropy-profile entropy_profile_bonsai.json \
+  --entropy-prune-ratio 2.0 \
+  --host 127.0.0.1 --port 8082
 ```
+
+### Gemma-4-E2B 4.6B Q8_0 (dense vision test platform)
+```bash
+llama-server \
+  -m ~/AI/models/google_gemma-4-E2B-it-Q8_0.gguf \
+  --mmproj ~/AI/models/mmproj-google_gemma-4-E2B-it-f16.gguf \
+  --no-mmproj-offload \
+  --alias Gemma-4-E2B --ctx-size 131072 --flash-attn on \
+  -ctk q8_0 -ctv turbo3_0 \
+  --entropy-profile entropy_profile_gemma4_book.json \
+  --entropy-prune-ratio 2.0 \
+  --host 127.0.0.1 --port 8083
+```
+> **Note:** Gemma-4-E2B has 512-token SWA in 28/35 layers. Use min-p=0.05-0.1, repeat-penalty=1.15 to suppress SWA artifacts. Use Bartowski/iMatrix quants (Unsloth versions have looping issues).
+
+### Ministral-3-3B Q5_K_L (best small dense model)
+```bash
+llama-server \
+  -m ~/AI/models/mistralai_Ministral-3-3B-Instruct-2512-Q5_K_L.gguf \
+  --mmproj ~/AI/models/mmproj-mistralai_Ministral-3-3B-Instruct-2512-f16.gguf \
+  --no-mmproj-offload \
+  --alias Ministral-3-3B -ngl 30 --ctx-size 131072 \
+  --flash-attn on -ctk q8_0 -ctv turbo3_0 \
+  --entropy-profile entropy_profile_ministral3_book.json \
+  --entropy-prune-ratio 2.0 \
+  --host 127.0.0.1 --port 8084
+```
+> **Memory:** Q5_K_L fits all 26 layers on GPU at 128K with 600 MiB free on 8GB. Q6_K_L (245 MiB free) is risky; Q8_0 needs partial offload. `--no-mmproj-offload` saves ~887 MiB GPU.
 
 ---
 
@@ -179,9 +208,21 @@ llama-cli -m ~/AI/models/Ternary-Bonsai-8B-Q2_0.gguf \
 
 | Model | Config | Pass | Matched | Hallucinated |
 |-------|--------|:----:|:-------:|:------------:|
-| Bonsai 8B Q2 | q8 K + turbo3 V | 11/11 | 218/220 | 0 |
-| **Qwen3.6 35B A3B** | **Path B, q8 K + turbo3 V** | **11/11** | **220/220** | **0** |
-| Qwen3-VL-30B A3B | Path B, q8 K + turbo3 V | 7/11 | 125/220 | 40 |
+| Bonsai 8B Q2 | q8 K + turbo3 V | 11/11 | 218/220 (99%) | 194* |
+| **Qwen3.6 35B A3B** | **Path B, q8 K + turbo3 V** | **11/11** | **220/220 (100%)** | **0** |
+| Qwen3-VL-30B A3B | Path B, q8 K + turbo3 V | 7/11 | 125/220 (57%) | 40 |
+| Gemma-4-E2B 4.6B | Path B, q8 K + turbo3 V | 8/11 | 161/220 (73%) | **4** 🟢 |
+| Ministral-3-3B 3.4B Q5 | Path B, q8 K + turbo3 V | 6/11 | 99/220 (45%) | 2 |
+
+> \*Bonsai's hallucinated count is inflated by 231 bonus-generated lines. Gemma-4-E2B has the cleanest output (only 4 hallucinated lines). All results use `relax_indent=true` scoring.
+> Qwen3.6 and Bonsai dominate recall. Gemma-4-E2B is surprisingly clean despite 512-token SWA. Ministral is solid but behind Gemma — its Q5 quantization trades 10pp recall for 4× fewer hallucinations.
+
+### Memory footprint by quant (Ministral-3-3B, 128K ctx, full offload)
+| Quant | File Size | GPU Model | GPU Free | t/s |
+|-------|:---------:|:---------:|:--------:|:---:|
+| Q5_K_L | 2.4 GB | 2444 MiB | **600 MiB** ✅ | 120-125 |
+| Q6_K_L | 2.8 GB | 2776 MiB | 245 MiB ⚠️ | 110-115 |
+| Q8_0 | 3.5 GB | 3474 MiB | OOM at 128K | — |
 
 ### jQuery corpus (~80K tokens, 16 targets)
 
@@ -253,22 +294,41 @@ The KV cache drops from an estimated ~4,134 MiB (q8 K + turbo3 V at 512K, no pru
 
 ## Entropy Profiles (Pre-Calibrated)
 
-| Model | File | Heads | Mean Entropy | CV |
-|-------|------|:----:|:------------:|:--:|
-| Bonsai 8B | `entropy_profile_bonsai.json` | 1152 | 0.620 | 0.58 |
-| Qwen3.6 35B A3B | `entropy_profile_qwen.json` (short prompts, deprecated) | 640 | 0.620 | 0.55 |
-| Qwen3.6 35B A3B | `entropy_profile_qwen_book.json` (Hitch Hiker text) | 640 | **1.081** | 0.24 |
-| Qwen3-VL-30B A3B | `entropy_profile_qwen3vl.json` | 1536 | 0.468 | 0.42 |
-| GLM-4.6V-Flash 9B | `entropy_profile_glm.json` (archived) | 1280 | 0.502 | 0.37 |
+| Model | File | Heads | Mean Entropy | CV | Notes |
+|-------|------|:----:|:------------:|:--:|-------|
+| Bonsai 8B | `entropy_profile_bonsai.json` | 1152 | 0.620 | 0.58 | |
+| Qwen3.6 35B A3B | `entropy_profile_qwen.json` (short prompts, deprecated) | 640 | 0.620 | 0.55 | |
+| Qwen3.6 35B A3B | `entropy_profile_qwen_book.json` (Hitch Hiker text) | 640 | **1.081** | 0.24 | |
+| Qwen3-VL-30B A3B | `entropy_profile_qwen3vl.json` | 1536 | 0.468 | 0.42 | |
+| **Gemma-4-E2B 4.6B** | **`entropy_profile_gemma4_book.json`** | **280** | **0.064** | **2.28** | All focused-type heads, 512 SWA |
+| **Ministral-3-3B 3.4B** | **`entropy_profile_ministral3_book.json`** | **832** | **0.647** | **0.32** | 20/26 low-entropy layers |
+| GLM-4.6V-Flash 9B | `entropy_profile_glm.json` (archived) | 1280 | 0.502 | 0.37 | |
+
+---
+
+## Investigated & Discounted
+
+### Sparse V dequant
+Benchmarked across 3 architectures (Ministral, Bonsai, Qwen3.6) at both 4K and 65K context. **No meaningful benefit** — all results within ±1.3% noise. Turbo3 V dequant is so lightweight that the warpReduceMax overhead for the sparsity check cancels any savings. Not production-viable.
+
+### Q2/Q4 V cache (plain quant)
+Non-turbo V cache types (q4_0, q2_0) lack optimized flash attention kernel paths — 5-60× slower than turbo3. Not usable with flash attention on our hardware.
+
+### Pre-RoPE K quantization
+Compressing K before rotary position encoding degrades SNR by up to -20 dB. Turbo4-like types applied pre-RoPE produce unusable output. Confirmed via standalone `prerope-validate` tool.
+
+### RVQ 2+2 (residual VQ)
+At same memory as flat turbo4: RVQ is -4.6 dB worse in SNR. Only valuable if per-token residual precision is needed.
+
+### TurboQuant K (uniform compression)
+Full turbo4 K (all layers) breaks Bonsai CodeNeedle retrieval (3/20 passes). Adaptive per-layer K (entropy Path B) is required for quality.
 
 ---
 
 ## Future Research Directions
 
-### From TheTom/turboquant_plus (to explore)
-- **Sparse V dequant**: +22.8% decode speed
-- **Boundary layer tuning** (deferred): TheTom found protecting first 2 + last 2 layers recovers 37-91% of quality gap from aggressive uniform K compression. Our entropy approach likely handles this automatically (high-entropy boundary layers naturally stay at q8), but we'll book-calibrate Bonsai and Qwen3-VL first to confirm before pursuing this further
-- **V at turbo2**: TheTom's independent validation confirms this is free when K precision is maintained
+### V at turbo2
+V compression is quality-free when K precision is maintained. Could try turbo2 V for ~20% less cache memory at no quality cost. Not critical — turbo3 is already fast and compact.
 
 ### True per-head granularity
 Split K tensor within a layer (the `k_extra` field is ready in our code). Beyond layer-level types, do head-level budget allocation.
