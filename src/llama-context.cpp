@@ -1456,6 +1456,12 @@ int llama_context::encode(const llama_batch & batch_inp) {
         }
     }
 
+    // Skip output extraction in DFlash/EAGLE3 feature extraction mode — 
+    // we only need the accumulated target features from the loop above
+    if (cparams.dflash_extract_enabled || cparams.eagle3_extract_enabled) {
+        return 0;
+    }
+
     auto * t_logits = res->get_logits();
     auto * t_embd = res->get_embd_pooled() ? res->get_embd_pooled() : res->get_embd();
 
