@@ -112,7 +112,21 @@ struct llama_context {
     bool get_flash_attn() const;
     void set_entropy_calibration(bool enable);
     void set_prune_kv(const std::map<llama_pos, float> & importance, float keep_ratio);
+    void set_eagle3(const llama_model * model);
+    void set_dflash(const llama_model * model);
+
     void set_cparams_layer_type_cb(const std::function<ggml_type(int32_t)> & cb);
+
+    // EAGLE3 draft model feature extraction
+    const float * get_eagle3_target_features() const;
+    void set_eagle3_g_embeddings(const float * g_embd, int32_t n_embd, int32_t n_tokens);
+    void extract_eagle3_features(const llama_ubatch & ubatch);
+
+    // DFlash draft model feature extraction
+    const float * get_dflash_target_features() const;
+    void set_dflash_accumulated_target_ctx(const float * data, int32_t n_embd, int32_t n_tokens);
+    void extract_dflash_features(const llama_ubatch & ubatch);
+
     ggml_cgraph * get_last_graph() const;
 
     void set_embeddings (bool value);
@@ -377,6 +391,11 @@ private:
     bool graph_reuse_disable = false;
 
     // perf
+    // EAGLE3 and DFlash draft model state
+    mutable llama_eagle3 eagle3;
+    mutable llama_dflash dflash;
+    bool dflash_decoder_ctx = false; // true when decoding in DFlash mode
+
     mutable int64_t t_start_us  = 0;
     mutable int64_t t_load_us   = 0;
     mutable int64_t t_p_eval_us = 0;

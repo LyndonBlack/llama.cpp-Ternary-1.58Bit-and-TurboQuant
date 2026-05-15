@@ -754,6 +754,31 @@ private:
 
             params_base.speculative.draft.ctx_tgt = ctx_tgt;
             params_base.speculative.draft.ctx_dft = ctx_dft.get();
+
+            // Check for DFlash / EAGLE3 speculative decoding types
+            const bool using_dflash = std::any_of(
+                params_base.speculative.types.begin(),
+                params_base.speculative.types.end(),
+                [](auto t) { return t == COMMON_SPECULATIVE_TYPE_DFLASH; });
+            const bool using_eagle3 = std::any_of(
+                params_base.speculative.types.begin(),
+                params_base.speculative.types.end(),
+                [](auto t) { return t == COMMON_SPECULATIVE_TYPE_EAGLE3; });
+
+            if (using_eagle3 || using_dflash) {
+                if (params_base.n_parallel > 1) {
+                    SRV_ERR("%s", "EAGLE3/DFlash speculative decoding is not supported with n_parallel > 1\n");
+                    return false;
+                }
+                if (using_eagle3) {
+                    llama_set_eagle3(ctx_tgt, model_dft.get());
+                    SRV_INF("%s", "EAGLE3 feature extraction enabled on target model\n");
+                }
+                if (using_dflash) {
+                    llama_set_dflash(ctx_tgt, model_dft.get());
+                    SRV_INF("%s", "DFlash feature extraction enabled on target model\n");
+                }
+            }
         }
 
         std::string & mmproj_path = params_base.mmproj.path;

@@ -1,5 +1,7 @@
 #include "llama-context.h"
 
+#include "llama-graph.h"
+
 #include "ggml.h"
 #include "llama-arch.h"
 #include "llama-impl.h"
@@ -1052,6 +1054,15 @@ void llama_context::set_prune_kv(const std::map<llama_pos, float> & importance, 
     }
     kv_cache->prune_by_importance(importance, keep_ratio);
 }
+void llama_context::set_eagle3(const llama_model * /*model*/) {
+    cparams.eagle3_extract_enabled = true;
+}
+
+void llama_context::set_dflash(const llama_model * /*model*/) {
+    cparams.dflash_extract_enabled = true;
+}
+
+
 
 ggml_cgraph * llama_context::get_last_graph() const {
     if (gf_res_prev) {
@@ -3823,6 +3834,32 @@ size_t llama_state_seq_load_file(llama_context * ctx, const char * filepath, lla
 
 ///
 
+
+
+void llama_set_eagle3(llama_context * ctx, const llama_model * model) {
+    ctx->set_eagle3(model);
+}
+
+void llama_set_dflash(llama_context * ctx, const llama_model * model) {
+    ctx->set_dflash(model);
+}
+
+const float * llama_get_eagle3_target_features(llama_context * ctx) {
+    return ctx->get_eagle3_target_features();
+}
+
+const float * llama_get_dflash_target_features(llama_context * ctx) {
+    return ctx->get_dflash_target_features();
+}
+
+void llama_set_eagle3_g_embeddings(llama_context * ctx, const float * g_embd, int32_t n_embd, int32_t n_tokens) {
+    ctx->set_eagle3_g_embeddings(g_embd, n_embd, n_tokens);
+}
+
+void llama_set_dflash_accumulated_target_ctx(llama_context * ctx, const float * data, int32_t n_embd, int32_t n_tokens) {
+    ctx->set_dflash_accumulated_target_ctx(data, n_embd, n_tokens);
+}
+
 int32_t llama_encode(
         llama_context * ctx,
           llama_batch   batch) {
@@ -3891,6 +3928,41 @@ bool llama_opt_param_filter_all(const struct ggml_tensor * tensor, void * userda
 
 void llama_opt_init(struct llama_context * ctx, struct llama_model * model, struct llama_opt_params lopt_params) {
     ctx->opt_init(model, lopt_params);
+}
+
+
+//
+// EAGLE3 member functions
+//
+
+const float * llama_context::get_eagle3_target_features() const {
+    GGML_ASSERT(!eagle3.target_features.empty() && "EAGLE3 target features not extracted");
+    return eagle3.target_features.data();
+}
+
+void llama_context::set_eagle3_g_embeddings(const float * g_embd, int32_t n_embd, int32_t n_tokens) {
+    GGML_ASSERT(g_embd != nullptr && "g_embeddings cannot be null");
+    GGML_ASSERT(n_embd > 0 && n_tokens > 0 && "invalid dimensions");
+    const size_t size = n_embd * n_tokens;
+    eagle3.g_embeddings.resize(size);
+    std::memcpy(eagle3.g_embeddings.data(), g_embd, size * sizeof(float));
+}
+
+//
+// DFlash member functions
+//
+
+const float * llama_context::get_dflash_target_features() const {
+    GGML_ASSERT(!dflash.target_features.empty() && "DFlash target features not extracted");
+    return dflash.target_features.data();
+}
+
+void llama_context::set_dflash_accumulated_target_ctx(const float * data, int32_t n_embd, int32_t n_tokens) {
+    GGML_ASSERT(data != nullptr && "accumulated target ctx cannot be null");
+    GGML_ASSERT(n_embd > 0 && n_tokens > 0 && "invalid dimensions");
+    const size_t size = n_embd * n_tokens;
+    dflash.accumulated_target_ctx.resize(size);
+    std::memcpy(dflash.accumulated_target_ctx.data(), data, size * sizeof(float));
 }
 
 void llama_opt_epoch(

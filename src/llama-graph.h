@@ -103,10 +103,14 @@ struct llama_dflash {
 
     std::vector<float> target_features;
 
+    // Accumulated target context for DFlash decoder cross-attention
+    std::vector<float> accumulated_target_ctx;
+
     std::vector<ggml_tensor *> extract_tensors;
 
     void clear() {
         target_features.clear();
+        accumulated_target_ctx.clear();
         extract_tensors.clear();
     }
 };
