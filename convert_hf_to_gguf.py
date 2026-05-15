@@ -116,7 +116,7 @@ class ModelBase:
                  split_max_tensors: int = 0, split_max_size: int = 0, dry_run: bool = False,
                  small_first_shard: bool = False, hparams: dict[str, Any] | None = None, remote_hf_model_id: str | None = None,
                  disable_mistral_community_chat_template: bool = False,
-                 sentence_transformers_dense_modules: bool = False,
+                 sentence_transformers_dense_modules: bool = False, target_model_dir: Path | None = None,
                  fuse_gate_up_exps: bool = False):
         if type(self) is ModelBase or \
                 type(self) is TextModel or \
@@ -136,6 +136,7 @@ class ModelBase:
         self.dry_run = dry_run
         self.remote_hf_model_id = remote_hf_model_id
         self.sentence_transformers_dense_modules = sentence_transformers_dense_modules
+        self.target_model_dir = target_model_dir
         self.fuse_gate_up_exps = fuse_gate_up_exps
         self._gate_exp_buffer: dict[int, Tensor] = {}
         self._up_exp_buffer: dict[int, Tensor] = {}
@@ -4838,6 +4839,47 @@ class Qwen3Model(Qwen2Model):
                     yield from super().modify_tensors(data_torch, name, bid)
                 return
 
+        yield from super().modify_tensors(data_torch, name, bid)
+
+
+@ModelBase.register("DFlashDraftModel")
+class DFlashModel(Qwen3Model):
+    model_arch = gguf.MODEL_ARCH.DFLASH
+
+    def set_vocab(self):
+        if self.target_model_dir is None:
+            raise ValueError(
+                "DFlash draft model requires --target-model-dir to be specified. "
+                "Please provide the path to the target model directory containing the tokenizer."
+            )
+        logger.info(f"DFLASH: Using tokenizer from target model: {self.target_model_dir}")
+        original_dir = self.dir_model
+        self.dir_model = self.target_model_dir
+        super().set_vocab()
+        self.dir_model = original_dir
+
+    def set_gguf_parameters(self):
+        super().set_gguf_parameters()
+        block_size = self.hparams.get("block_size", 16)
+        self.gguf_writer.add_uint32(f"{self.gguf_writer.arch}.block_size", block_size)
+        dflash_config = self.hparams.get("dflash_config", {})
+        target_layer_ids = dflash_config.get("target_layer_ids", [])
+        if target_layer_ids:
+            extract_layer_ids = [i + 1 for i in target_layer_ids]
+            self.gguf_writer.add_array(f"{self.gguf_writer.arch}.target_layer_ids", extract_layer_ids)
+        mask_token_id = dflash_config.get("mask_token_id", None)
+        if mask_token_id is not None:
+            self.gguf_writer.add_uint32(f"{self.gguf_writer.arch}.mask_token_id", mask_token_id)
+
+    def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
+        if name == "fc.weight":
+            yield (name, data_torch)
+            return
+        if name == "hidden_norm.weight":
+            yield ("hidden_norm.weight", data_torch)
+            return
+        if not name.startswith("model."):
+            name = "model." + name
         yield from super().modify_tensors(data_torch, name, bid)
 
 
@@ -14223,7 +14265,8 @@ def main() -> None:
                                      small_first_shard=args.no_tensor_first_split,
                                      remote_hf_model_id=hf_repo_id, disable_mistral_community_chat_template=disable_mistral_community_chat_template,
                                      sentence_transformers_dense_modules=args.sentence_transformers_dense_modules,
-                                     fuse_gate_up_exps=args.fuse_gate_up_exps
+                                     fuse_gate_up_exps=args.fuse_gate_up_exps,
+                                     target_model_dir=args.target_model_dir
                                      )
 
         if args.vocab_only:
