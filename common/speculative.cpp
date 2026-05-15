@@ -23,6 +23,8 @@ const std::map<std::string, common_speculative_type> common_speculative_type_fro
     {"none",          COMMON_SPECULATIVE_TYPE_NONE},
     {"draft-simple",  COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE},
     {"draft-eagle3",  COMMON_SPECULATIVE_TYPE_DRAFT_EAGLE3},
+    {"eagle3",        COMMON_SPECULATIVE_TYPE_EAGLE3},
+    {"dflash",        COMMON_SPECULATIVE_TYPE_DFLASH},
     {"ngram-simple",  COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE},
     {"ngram-map-k",   COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K},
     {"ngram-map-k4v", COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K4V},
@@ -361,6 +363,29 @@ struct common_speculative_impl_draft_eagle3 : public common_speculative_impl {
 
     void accept(llama_seq_id /*seq_id*/, uint16_t /*n_accepted*/) override {
         // noop
+    }
+};
+
+// DFlash speculative decoding implementation (delegates to llama_set_dflash API)
+struct common_speculative_impl_dflash : public common_speculative_impl {
+    common_speculative_impl_dflash(const common_params_speculative & /*params*/, uint32_t n_seq)
+        : common_speculative_impl(COMMON_SPECULATIVE_TYPE_DFLASH, n_seq) {}
+
+    void begin(llama_seq_id /*seq_id*/, const llama_tokens & /*prompt*/) override {
+        // DFlash setup handled by server/CLI via llama_set_dflash()
+    }
+
+    bool process(const llama_batch & /*batch*/) override {
+        // Feature extraction handled by llama_encode_dflash_features()
+        return true;
+    }
+
+    void draft(common_speculative_draft_params_vec & /*dparams*/) override {
+        // DFlash drafting handled by llama_decode_dflash_features()
+    }
+
+    void accept(llama_seq_id /*seq_id*/, uint16_t /*n_accepted*/) override {
+        // DFlash tracked internally
     }
 };
 
@@ -820,6 +845,8 @@ std::string common_speculative_type_to_str(common_speculative_type type) {
         case COMMON_SPECULATIVE_TYPE_NONE:          return "none";
         case COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE:  return "draft-simple";
         case COMMON_SPECULATIVE_TYPE_DRAFT_EAGLE3:  return "draft-eagle3";
+        case COMMON_SPECULATIVE_TYPE_EAGLE3:        return "eagle3";
+        case COMMON_SPECULATIVE_TYPE_DFLASH:        return "dflash";
         case COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE:  return "ngram-simple";
         case COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K:   return "ngram-map-k";
         case COMMON_SPECULATIVE_TYPE_NGRAM_MAP_K4V: return "ngram-map-k4v";
@@ -877,6 +904,8 @@ common_speculative * common_speculative_init(common_params_speculative & params,
         bool has_draft_simple = (enabled_configs & (1u << COMMON_SPECULATIVE_TYPE_DRAFT_SIMPLE));
         // bool has_mtp = false; // TODO: add MTP here
         bool has_draft_eagle3 = false; // TODO PR-18039: if params.speculative.eagle3
+        bool has_eagle3      = (enabled_configs & (1u << COMMON_SPECULATIVE_TYPE_EAGLE3));
+        bool has_dflash      = (enabled_configs & (1u << COMMON_SPECULATIVE_TYPE_DFLASH));
 
         bool has_ngram_cache   = (enabled_configs & (1u << COMMON_SPECULATIVE_TYPE_NGRAM_CACHE));
         bool has_ngram_simple  = (enabled_configs & (1u << COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE));
@@ -885,7 +914,7 @@ common_speculative * common_speculative_init(common_params_speculative & params,
         bool has_ngram_mod     = (enabled_configs & (1u << COMMON_SPECULATIVE_TYPE_NGRAM_MOD));
 
         // when adding a new type - update here the logic above
-        static_assert(COMMON_SPECULATIVE_TYPE_COUNT == 8);
+        static_assert(COMMON_SPECULATIVE_TYPE_COUNT == 10);
 
         // this list here defines the priority of the speculators
         // the one with highest priority are listed first
@@ -923,6 +952,12 @@ common_speculative * common_speculative_init(common_params_speculative & params,
         if (has_draft_eagle3) {
             configs.push_back(common_speculative_config(COMMON_SPECULATIVE_TYPE_DRAFT_EAGLE3, params));
         }
+        if (has_eagle3) {
+            configs.push_back(common_speculative_config(COMMON_SPECULATIVE_TYPE_EAGLE3, params));
+        }
+        if (has_dflash) {
+            configs.push_back(common_speculative_config(COMMON_SPECULATIVE_TYPE_DFLASH, params));
+        }
     }
 
     std::vector<std::unique_ptr<common_speculative_impl>> impls = {};
@@ -938,6 +973,13 @@ common_speculative * common_speculative_init(common_params_speculative & params,
             }
             case COMMON_SPECULATIVE_TYPE_DRAFT_EAGLE3: {
                 impls.push_back(std::make_unique<common_speculative_impl_draft_eagle3>(config.params, n_seq));
+                break;
+            }
+            case COMMON_SPECULATIVE_TYPE_EAGLE3:
+                // New-style EAGLE3 handled by llama_set_eagle3 API
+                break;
+            case COMMON_SPECULATIVE_TYPE_DFLASH: {
+                impls.push_back(std::make_unique<common_speculative_impl_dflash>(config.params, n_seq));
                 break;
             }
             case COMMON_SPECULATIVE_TYPE_NGRAM_SIMPLE: {

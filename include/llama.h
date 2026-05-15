@@ -392,7 +392,7 @@ extern "C" {
         // il: layer index (0-based)
         // Return: ggml_type to use for this layer's K cache
         // Return GGML_TYPE_COUNT to use the default type_k for that layer
-        ggml_type (*layer_type_k_cb)(void * user_data, int32_t il);
+        enum ggml_type (*layer_type_k_cb)(void * user_data, int32_t il);
         void * layer_type_k_user_data;
     };
 
