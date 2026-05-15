@@ -505,6 +505,41 @@ struct llama_model_qwen3moe : public llama_model_base {
     std::unique_ptr<llm_graph_context> build_arch_graph(const llm_graph_params & params) const override;
 };
 
+struct llm_build_eagle3_encode : public llm_graph_context {
+    llm_build_eagle3_encode(const llama_model & model, const llm_graph_params & params);
+private:
+    ggml_tensor * build_inp_embd() const;
+};
+
+struct llm_build_eagle3_decode : public llm_graph_context {
+    llm_build_eagle3_decode(const llama_model & model, const llm_graph_params & params);
+};
+
+struct llm_build_dflash_encode : public llm_graph_context {
+    llm_build_dflash_encode(const llama_model & model, const llm_graph_params & params);
+private:
+    ggml_tensor * build_inp_embd() const;
+};
+
+struct llm_build_dflash_decode : public llm_graph_context {
+    llm_build_dflash_decode(const llama_model & model, const llm_graph_params & params);
+};
+
+// DFlash and EAGLE3 model classes (implemented in dflash.cpp/eagle3.cpp)
+struct llama_model_dflash : public llama_model_base {
+    llama_model_dflash(const struct llama_model_params & params);
+    void load_arch_hparams(llama_model_loader & ml) override;
+    void load_arch_tensors(llama_model_loader & ml) override;
+    std::unique_ptr<llm_graph_context> build_arch_graph(const llm_graph_params & params) const override;
+};
+
+struct llama_model_eagle3 : public llama_model_base {
+    llama_model_eagle3(const struct llama_model_params & params);
+    void load_arch_hparams(llama_model_loader & ml) override;
+    void load_arch_tensors(llama_model_loader & ml) override;
+    std::unique_ptr<llm_graph_context> build_arch_graph(const llm_graph_params & params) const override;
+};
+
 
 struct llama_model_qwen3vl : public llama_model_base {
     llama_model_qwen3vl(const struct llama_model_params & params) : llama_model_base(params) {}
