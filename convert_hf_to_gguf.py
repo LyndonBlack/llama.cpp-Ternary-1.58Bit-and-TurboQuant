@@ -14119,6 +14119,9 @@ def parse_args() -> argparse.Namespace:
         "--fuse-gate-up-exps", action="store_true",
         help="Fuse gate_exps and up_exps tensors into a single gate_up_exps tensor for MoE models.",
     )
+    parser.add_argument("--target-model-dir", type=Path,
+        help="Path to the target model directory (required for DFlash/EAGLE3 draft models)",
+    )
 
     args = parser.parse_args()
     if not args.print_supported_models and args.model is None:

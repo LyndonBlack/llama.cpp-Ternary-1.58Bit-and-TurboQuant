@@ -47,10 +47,18 @@ void llama_model_dflash::load_arch_tensors(llama_model_loader &) {
 }
 
 std::unique_ptr<llm_graph_context> llama_model_dflash::build_arch_graph(const llm_graph_params & params) const {
+    // DFlash encoder: processes target features, always available
     if (params.gtype == LLM_GRAPH_TYPE_ENCODER) {
         return std::make_unique<llm_build_dflash_encode>(*this, params);
     }
-    return std::make_unique<llm_build_dflash_decode>(*this, params);
+    // DFlash decoder requires target model (for embeddings + features).
+    // When loading standalone (no target attached), or during memory estimation,
+    // fall back to encoder graph which has no external dependencies.
+    if (params.gtype == LLM_GRAPH_TYPE_DECODER && target_tok_embd != nullptr && target_output != nullptr) {
+        return std::make_unique<llm_build_dflash_decode>(*this, params);
+    }
+    // Default/memory-estimation path: use encoder graph
+    return std::make_unique<llm_build_dflash_encode>(*this, params);
 }
 
 ggml_tensor * llm_build_dflash_encode::build_inp_embd() const {
@@ -70,6 +78,15 @@ ggml_tensor * llm_build_dflash_encode::build_inp_embd() const {
 }
 
 llm_build_dflash_encode::llm_build_dflash_encode(const llama_model & model, const llm_graph_params & params) : llm_graph_context(params) {
+    // Safety: if fc is null (standalone load), build minimal no-op graph
+    if (model.fc == nullptr) {
+        ggml_tensor * cur = ggml_new_tensor_1d(ctx0, GGML_TYPE_F32, 1);
+        ggml_set_input(cur);
+        res->t_embd = cur;
+        ggml_build_forward_expand(gf, cur);
+        return;
+    }
+
     ggml_tensor * cur = build_inp_embd();
 
     cur = build_lora_mm(model.fc, cur);

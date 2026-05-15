@@ -1323,10 +1323,15 @@ int llama_context::encode(const llama_batch & batch_inp) {
 
     // [TAG_NO_CACHE_PAD]
     // TODO: add new split mode where we pad the input sequences so that ubatch.equal_seqs == true
-    const llama_ubatch ubatch = balloc->split_simple(n_tokens);
-
-    // micro-batching is not possible for non-causal encoding, so we process the batch in a single shot
-    GGML_ASSERT(cparams.n_ubatch >= n_tokens && "encoder requires n_ubatch >= n_tokens");
+    // Chunked encoding for large prompts (DFlash/EAGLE3 feature extraction)
+    // Process tokens in batches of n_ubatch to handle large prompts without OOM
+    const uint32_t n_ubatch_val = cparams.n_ubatch;
+    uint32_t n_encode = std::min(n_ubatch_val, n_tokens);
+    if (n_encode < n_tokens) {
+        LLAMA_LOG_WARN("%s: n_tokens=%u > n_ubatch=%u, chunking into %u batches\n",
+                       __func__, n_tokens, n_ubatch_val, (n_tokens + n_ubatch_val - 1) / n_ubatch_val);
+    }
+    const llama_ubatch ubatch = balloc->split_simple(n_encode);
 
     if (t_compute_start_us == 0) {
         t_compute_start_us = ggml_time_us();
@@ -1337,19 +1342,19 @@ int llama_context::encode(const llama_batch & batch_inp) {
 
     sched_reserve();
 
-    n_queued_tokens += n_tokens;
+    n_queued_tokens += n_encode;
 
     // reserve output buffer
-    if (output_reserve(n_tokens) < n_tokens) {
-        LLAMA_LOG_ERROR("%s: could not reserve space for batch with %u outputs\n", __func__, n_tokens);
+    if (output_reserve(n_encode) < n_encode) {
+        LLAMA_LOG_ERROR("%s: could not reserve space for batch with %u outputs\n", __func__, n_encode);
         return -2;
     };
 
-    for (uint32_t i = 0; i < n_tokens; ++i) {
+    for (uint32_t i = 0; i < n_encode; ++i) {
         output_ids[i] = i;
     }
 
-    n_outputs = n_tokens;
+    n_outputs = n_encode;
 
     const auto causal_attn_org = cparams.causal_attn;
 
@@ -1358,8 +1363,87 @@ int llama_context::encode(const llama_batch & batch_inp) {
     //       ref: https://github.com/ggml-org/llama.cpp/pull/12181#issuecomment-2730451223
     cparams.causal_attn = false;
 
-    ggml_status status;
-    const auto * res = process_ubatch(ubatch, LLM_GRAPH_TYPE_ENCODER, nullptr, status);
+    ggml_status status = GGML_STATUS_SUCCESS;
+    const llm_graph_result * res = nullptr;
+
+    // Process in chunks of n_ubatch to handle large prompts
+    // DFlash/EAGLE3 feature extraction accumulates across chunks
+    for (uint32_t chunk_start = 0; chunk_start < n_tokens; chunk_start += cparams.n_ubatch) {
+        const uint32_t chunk_size = std::min(cparams.n_ubatch, n_tokens - chunk_start);
+
+        if (!balloc->init(batch_inp, model.vocab, nullptr, n_embd,
+                          cparams.kv_unified ? LLAMA_MAX_SEQ : cparams.n_seq_max, true)) {
+            LLAMA_LOG_ERROR("%s: failed to reinitialize batch at token offset %u\n", __func__, chunk_start);
+            return -1;
+        }
+
+        // Clear DFlash/EAGLE3 extract tensors before each chunk
+        if (cparams.dflash_extract_enabled) {
+            dflash.extract_tensors.clear();
+        }
+        if (cparams.eagle3_extract_enabled) {
+            eagle3.extract_tensors.clear();
+        }
+
+        // Create ubatch covering only this chunk of tokens
+        const llama_ubatch chunk_ubatch = balloc->split_simple(chunk_start + chunk_size);
+
+        // Recompute n_encode for this chunk
+        n_encode = chunk_start + chunk_size;
+        for (uint32_t i = 0; i < n_encode; ++i) {
+            output_ids[i] = i;
+        }
+        n_outputs = n_encode;
+
+        res = process_ubatch(chunk_ubatch, LLM_GRAPH_TYPE_ENCODER, nullptr, status);
+
+        if (!res) {
+            break;
+        }
+
+        // Extract DFlash features from captured tensors
+        if (cparams.dflash_extract_enabled && !dflash.extract_tensors.empty()) {
+            const size_t n_extract = dflash.extract_tensors.size();
+            const size_t n_embd_head = hparams.n_embd_head_v();
+            // Accumulate features: each extract tensor has shape [n_embd, chunk_size]
+            // but we read all captured tokens (chunk_start + chunk_size)
+            const size_t feat_size = n_embd * chunk_size;
+            if (dflash.target_features.size() < feat_size * n_extract) {
+                dflash.target_features.resize(feat_size * n_extract);
+            }
+            for (size_t ei = 0; ei < n_extract; ++ei) {
+                if (dflash.extract_tensors[ei]) {
+                    ggml_backend_t backend = ggml_backend_sched_get_tensor_backend(sched.get(), dflash.extract_tensors[ei]);
+                    if (backend) {
+                        ggml_backend_tensor_get_async(backend, dflash.extract_tensors[ei],
+                            dflash.target_features.data() + ei * feat_size,
+                            chunk_start * n_embd * sizeof(float),
+                            feat_size * sizeof(float));
+                    }
+                }
+            }
+        }
+
+        // Extract EAGLE3 features from captured tensors
+        if (cparams.eagle3_extract_enabled && !eagle3.extract_tensors.empty()) {
+            const size_t n_extract = eagle3.extract_tensors.size();
+            const size_t feat_size = n_embd * chunk_size;
+            if (eagle3.target_features.size() < feat_size * n_extract) {
+                eagle3.target_features.resize(feat_size * n_extract);
+            }
+            for (size_t ei = 0; ei < n_extract; ++ei) {
+                if (eagle3.extract_tensors[ei]) {
+                    ggml_backend_t backend = ggml_backend_sched_get_tensor_backend(sched.get(), eagle3.extract_tensors[ei]);
+                    if (backend) {
+                        ggml_backend_tensor_get_async(backend, eagle3.extract_tensors[ei],
+                            eagle3.target_features.data() + ei * feat_size,
+                            chunk_start * n_embd * sizeof(float),
+                            feat_size * sizeof(float));
+                    }
+                }
+            }
+        }
+    }
 
     cparams.causal_attn = causal_attn_org;
 
@@ -2222,8 +2306,8 @@ llm_graph_params llama_context::graph_params(
         /*.loras       =*/ loras.get(),
         /*.mctx        =*/ mctx,
         /*.cross       =*/ &cross,
-        /*.eagle3      =*/ nullptr,
-        /*.dflash      =*/ nullptr,
+        /*.eagle3      =*/ cparams.eagle3_extract_enabled ? const_cast<llama_eagle3*>(&eagle3) : nullptr,
+        /*.dflash      =*/ cparams.dflash_extract_enabled ? const_cast<llama_dflash*>(&dflash) : nullptr,
         /*.samplers    =*/ sampling.samplers,
         /*.n_outputs   =*/ n_outputs,
         /*.cb          =*/ graph_get_cb(),
@@ -2287,6 +2371,36 @@ llm_graph_cb llama_context::graph_get_cb() const {
         // entropy calibration: capture kq_soft_max tensors
         if (calibration_on_tensor) {
             calibration_on_tensor(cur, name, il);
+        }
+
+        // DFlash: capture intermediate layer features from target model
+        if (dflash.extract_layer_indices.size() > 0) {
+            for (size_t i = 0; i < dflash.extract_layer_indices.size() && i < 5; ++i) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "dflash_extract_%zu", i);
+                if (strcmp(name, buf) == 0) {
+                    if (dflash.extract_tensors.size() <= i) {
+                        dflash.extract_tensors.resize(i + 1);
+                    }
+                    dflash.extract_tensors[i] = cur;
+                    break;
+                }
+            }
+        }
+
+        // EAGLE3: capture intermediate layer features from target model
+        if (eagle3.extract_layer_indices.size() > 0) {
+            for (size_t i = 0; i < eagle3.extract_layer_indices.size() && i < 3; ++i) {
+                char buf[32];
+                snprintf(buf, sizeof(buf), "eagle3_extract_%zu", i);
+                if (strcmp(name, buf) == 0) {
+                    if (eagle3.extract_tensors.size() <= i) {
+                        eagle3.extract_tensors.resize(i + 1);
+                    }
+                    eagle3.extract_tensors[i] = cur;
+                    break;
+                }
+            }
         }
     };
 }
