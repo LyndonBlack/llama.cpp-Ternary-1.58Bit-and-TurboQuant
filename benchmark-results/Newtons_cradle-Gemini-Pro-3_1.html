@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Newton's Cradle</title>
+   <style>
+       /*
+        * Single-file CSS
+        * Clean, neutral background using a subtle radial gradient to focus attention on the cradle
+        */
+       body, html {
+           margin: 0;
+           padding: 0;
+           width: 100%;
+           height: 100%;
+           overflow: hidden;
+           background: radial-gradient(circle at center, #f4f6f9 0%, #cfd4db 100%);
+           display: flex;
+           justify-content: center;
+           align-items: center;
+           font-family: sans-serif;
+       }
+
+       canvas {
+           display: block;
+           /* Ensures crisp rendering on high-DPI displays */
+           width: 100%;
+           height: 100%;
+       }
+   </style>
+</head>
+<body>
+
+   <canvas id="cradleCanvas"></canvas>
+
+   <script>
+       /**
+        * Vanilla JavaScript Newton's Cradle Animation
+        * No external libraries. Uses HTML5 Canvas for high-performance, accurate rendering.
+        */
+
+       const canvas = document.getElementById('cradleCanvas');
+       const ctx = canvas.getContext('2d');
+
+       // ==========================================
+       // Physics & Render Constants
+       // ==========================================
+       const NUM_BALLS = 5;
+       const BALL_RADIUS = 30;
+       const STRING_LENGTH = 300;
+       const MAX_ANGLE = Math.PI / 3.5; // Maximum swing amplitude (~51 degrees)
+       const ANIMATION_SPEED = 0.0028;  // Speed multiplier for the physics loop
+
+       // Internal state
+       let width, height, dpr;
+       let cx, cy;
+
+       // ==========================================
+       // Initialization and Responsive Scaling
+       // ==========================================
+       function resize() {
+           width = window.innerWidth;
+           height = window.innerHeight;
+           // Handle high-resolution/Retina displays
+           dpr = window.devicePixelRatio || 1;
+
+           canvas.width = width * dpr;
+           canvas.height = height * dpr;
+
+           ctx.scale(dpr, dpr);
+
+           // Center the cradle gracefully
+           cx = width / 2;
+           cy = height * 0.25;
+       }
+
+       window.addEventListener('resize', resize);
+       resize();
+
+       // ==========================================
+       // Drawing Utility Functions
+       // ==========================================
+
+       /**
+        * Renders the support frame (top bar and pillars)
+        */
+       function drawFrame(baseY) {
+           const barWidth = NUM_BALLS * BALL_RADIUS * 2 + 120;
+
+           // 1. Draw top metallic bar
+           const barHeight = 16;
+           const barY = cy - barHeight / 2;
+
+           let gradTop = ctx.createLinearGradient(0, barY, 0, barY + barHeight);
+           gradTop.addColorStop(0, '#e0e0e0');
+           gradTop.addColorStop(0.3, '#ffffff');
+           gradTop.addColorStop(0.7, '#999999');
+           gradTop.addColorStop(1, '#555555');
+
+           ctx.fillStyle = gradTop;
+           // Rounded rectangle for the top bar
+           ctx.beginPath();
+           ctx.roundRect(cx - barWidth/2, barY, barWidth, barHeight, 8);
+           ctx.fill();
+
+           // 2. Draw side pillars (sleek metal rods)
+           const drawPillar = (x) => {
+               let gradPillar = ctx.createLinearGradient(x - 6, 0, x + 6, 0);
+               gradPillar.addColorStop(0, '#666');
+               gradPillar.addColorStop(0.4, '#fff');
+               gradPillar.addColorStop(1, '#444');
+
+               ctx.fillStyle = gradPillar;
+               ctx.fillRect(x - 6, cy, 12, baseY - cy);
+           };
+
+           drawPillar(cx - barWidth/2 + 15);
+           drawPillar(cx + barWidth/2 - 15);
+       }
+
+       /**
+        * Renders the base block to ground the object
+        */
+       function drawBase(baseY) {
+           const baseWidth = NUM_BALLS * BALL_RADIUS * 2 + 180;
+           const baseHeight = 24;
+
+           // Drop shadow for the base
+           ctx.shadowColor = 'rgba(0, 0, 0, 0.25)';
+           ctx.shadowBlur = 25;
+           ctx.shadowOffsetY = 15;
+
+           // Base gradient
+           let baseGrad = ctx.createLinearGradient(0, baseY, 0, baseY + baseHeight);
+           baseGrad.addColorStop(0, '#3a3d42');
+           baseGrad.addColorStop(1, '#1b1d1f');
+
+           ctx.fillStyle = baseGrad;
+           ctx.beginPath();
+           ctx.roundRect(cx - baseWidth/2, baseY, baseWidth, baseHeight, 10);
+           ctx.fill();
+
+           // Reset shadow
+           ctx.shadowColor = 'transparent';
+           ctx.shadowBlur = 0;
+           ctx.shadowOffsetY = 0;
+
+           // Base top highlight
+           ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+           ctx.fillRect(cx - baseWidth/2 + 5, baseY + 1, baseWidth - 10, 2);
+       }
+
+       /**
+        * Renders a highly polished, 3D metallic sphere
+        */
+       function drawBall(x, y) {
+           ctx.beginPath();
+           ctx.arc(x, y, BALL_RADIUS, 0, Math.PI * 2);
+
+           // Primary radial gradient for metallic lighting
+           let grad = ctx.createRadialGradient(
+               x - BALL_RADIUS * 0.35, y - BALL_RADIUS * 0.35, BALL_RADIUS * 0.05,
+               x, y, BALL_RADIUS
+           );
+           grad.addColorStop(0, '#ffffff');     // Bright specular highlight
+           grad.addColorStop(0.2, '#d1d6dc');   // Light chrome
+           grad.addColorStop(0.6, '#6b727a');   // Mid-tone reflection
+           grad.addColorStop(0.85, '#2c3138');  // Dark edge
+           grad.addColorStop(1, '#0e1012');     // Deep shadow rim
+
+           ctx.fillStyle = grad;
+           ctx.fill();
+
+           // Secondary radial gradient to simulate ambient reflection from the floor
+           let reflectGrad = ctx.createRadialGradient(
+               x + BALL_RADIUS * 0.4, y + BALL_RADIUS * 0.5, 0,
+               x + BALL_RADIUS * 0.4, y + BALL_RADIUS * 0.5, BALL_RADIUS * 0.6
+           );
+           reflectGrad.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+           reflectGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+           ctx.fillStyle = reflectGrad;
+           ctx.fill();
+
+           // Faint dark outline to ensure distinct edges between touching balls
+           ctx.lineWidth = 0.5;
+           ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+           ctx.stroke();
+       }
+
+       /**
+        * Renders the dynamic floor shadow based on the ball's elevation
+        */
+       function drawShadow(x, shadowY, heightOffset) {
+           ctx.save();
+           ctx.translate(x, shadowY);
+           ctx.scale(1, 0.25); // Squash into a perspective ellipse
+
+           ctx.beginPath();
+           // As the ball swings up, the shadow shrinks and becomes softer
+           let radius = Math.max(0.1, (BALL_RADIUS * 1.1) - heightOffset * 0.4);
+           let opacity = Math.max(0, 0.35 - heightOffset * 0.003);
+
+           ctx.arc(0, 0, radius, 0, Math.PI * 2);
+           ctx.fillStyle = `rgba(0, 0, 0, ${opacity})`;
+           ctx.fill();
+
+           ctx.restore();
+       }
+
+       // ==========================================
+       // Main Animation Loop
+       // ==========================================
+       function animate(time) {
+           // Clear the canvas for the next frame
+           ctx.clearRect(0, 0, width, height);
+
+           // -----------------------------------------------------
+           // PHYSICS LOGIC
+           // -----------------------------------------------------
+           // A sine wave produces perfect pendulum-style harmonic motion.
+           // By splitting the negative and positive phases, we achieve a
+           // mathematically perfect, seamless transfer of momentum (elastic collision).
+           // At angle 0, the derivative (velocity) is highest, simulating max impact energy.
+           let masterAngle = MAX_ANGLE * Math.sin(time * ANIMATION_SPEED);
+
+           let angles = new Array(NUM_BALLS).fill(0);
+
+           // Subtle compressive shockwave logic
+           // When masterAngle approaches 0 (impact time), a tiny vibration passes through the resting balls
+           let impactFactor = Math.max(0, 1 - Math.abs(masterAngle) * 5);
+           let vibration = impactFactor * 0.02; // Peak tiny rotation
+
+           if (masterAngle < 0) {
+               // Leftmost ball is swinging
+               angles[0] = masterAngle;
+
+               // Send a tiny visual shockwave rightward through the stationary balls
+               angles[1] = -vibration * 1.0;
+               angles[2] = -vibration * 0.5;
+               angles[3] = -vibration * 0.2;
+           } else {
+               // Rightmost ball is swinging
+               angles[NUM_BALLS - 1] = masterAngle;
+
+               // Send a tiny visual shockwave leftward through the stationary balls
+               angles[NUM_BALLS - 2] = vibration * 1.0;
+               angles[NUM_BALLS - 3] = vibration * 0.5;
+               angles[NUM_BALLS - 4] = vibration * 0.2;
+           }
+
+           // -----------------------------------------------------
+           // CALCULATION & RENDERING
+           // -----------------------------------------------------
+           const baseY = cy + STRING_LENGTH + BALL_RADIUS + 50; // Floor level for the base
+           const shadowY = cy + STRING_LENGTH + BALL_RADIUS + 15; // Plane for shadows
+
+           // Draw Base and Frame (rendered behind the strings and balls)
+           drawBase(baseY);
+           drawFrame(baseY);
+
+           // Pre-calculate positions
+           let ballsData = [];
+           for (let i = 0; i < NUM_BALLS; i++) {
+               // The pivot points are spaced exactly by the diameter of the balls
+               let pivotX = cx + (i - (NUM_BALLS - 1) / 2) * (BALL_RADIUS * 2);
+               let pivotY = cy;
+
+               // Pendulum kinematics using exact sine/cosine rotation
+               let bx = pivotX + STRING_LENGTH * Math.sin(angles[i]);
+               let by = pivotY + STRING_LENGTH * Math.cos(angles[i]);
+
+               ballsData.push({ pivotX, pivotY, bx, by, angle: angles[i] });
+           }
+
+           // 1. Draw all shadows first so they sit cleanly on the "floor"
+           ballsData.forEach(b => {
+               let heightOffset = STRING_LENGTH - (b.by - b.pivotY);
+               drawShadow(b.bx, shadowY, heightOffset);
+           });
+
+           // 2. Draw strings and metallic balls
+           ballsData.forEach(b => {
+               // Suspension String
+               ctx.beginPath();
+               ctx.moveTo(b.pivotX, b.pivotY);
+               ctx.lineTo(b.bx, b.by); // Draw to center of ball; the ball will cover the endpoint
+               ctx.lineWidth = 1.2;
+               ctx.strokeStyle = '#8a8e94';
+               ctx.stroke();
+
+               // Solid Sphere
+               drawBall(b.bx, b.by);
+           });
+
+           // Loop smoothly
+           requestAnimationFrame(animate);
+       }
+
+       // Start animation
+       requestAnimationFrame(animate);
+
+   </script>
+</body>
+</html>

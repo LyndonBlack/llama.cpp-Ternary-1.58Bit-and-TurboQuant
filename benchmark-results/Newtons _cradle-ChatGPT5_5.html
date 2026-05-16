@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Newton's Cradle</title>
+
+<style>
+ :root {
+   color-scheme: light;
+ }
+
+ * {
+   box-sizing: border-box;
+ }
+
+ html,
+ body {
+   width: 100%;
+   height: 100%;
+   margin: 0;
+   overflow: hidden;
+   background:
+     radial-gradient(circle at 50% 42%, rgba(255, 255, 255, 0.95), rgba(235, 238, 242, 0.9) 42%, #dfe4ea 100%);
+   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+ }
+
+ body {
+   display: grid;
+   place-items: center;
+ }
+
+ canvas {
+   display: block;
+   width: 100vw;
+   height: 100vh;
+ }
+</style>
+</head>
+
+<body>
+<canvas id="cradle"></canvas>
+
+<script>
+(() => {
+ "use strict";
+
+ const canvas = document.getElementById("cradle");
+ const ctx = canvas.getContext("2d", { alpha: true });
+
+ /*
+   Main animation constants.
+   Values are scaled responsively at render time, but these ratios define
+   the physical look and timing of the cradle.
+ */
+ const BALL_COUNT = 5;
+ const BALL_RADIUS_RATIO = 0.034;
+ const STRING_LENGTH_RATIO = 0.255;
+ const MAX_SWING_ANGLE = 0.54;
+ const ANIMATION_SPEED = 1.0;
+ const IMPACT_HOLD = 0.075;
+ const DAMPING = 0.985;
+
+ const TAU = Math.PI * 2;
+ const HALF_PI = Math.PI / 2;
+
+ let width = 0;
+ let height = 0;
+ let dpr = 1;
+ let startTime = performance.now();
+
+ function resize() {
+   dpr = Math.min(window.devicePixelRatio || 1, 2);
+   width = window.innerWidth;
+   height = window.innerHeight;
+
+   canvas.width = Math.floor(width * dpr);
+   canvas.height = Math.floor(height * dpr);
+   canvas.style.width = `${width}px`;
+   canvas.style.height = `${height}px`;
+
+   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+ }
+
+ window.addEventListener("resize", resize, { passive: true });
+ resize();
+
+ function clamp(value, min, max) {
+   return Math.max(min, Math.min(max, value));
+ }
+
+ function smoothstep(edge0, edge1, value) {
+   const x = clamp((value - edge0) / (edge1 - edge0), 0, 1);
+   return x * x * (3 - 2 * x);
+ }
+
+ function drawRoundedRect(x, y, w, h, r) {
+   const rr = Math.min(r, w / 2, h / 2);
+   ctx.beginPath();
+   ctx.moveTo(x + rr, y);
+   ctx.arcTo(x + w, y, x + w, y + h, rr);
+   ctx.arcTo(x + w, y + h, x, y + h, rr);
+   ctx.arcTo(x, y + h, x, y, rr);
+   ctx.arcTo(x, y, x + w, y, rr);
+   ctx.closePath();
+ }
+
+ function drawBackground() {
+   ctx.clearRect(0, 0, width, height);
+
+   const floorY = height * 0.78;
+
+   const floorGradient = ctx.createLinearGradient(0, floorY - 60, 0, height);
+   floorGradient.addColorStop(0, "rgba(255,255,255,0.0)");
+   floorGradient.addColorStop(1, "rgba(188,196,207,0.34)");
+
+   ctx.fillStyle = floorGradient;
+   ctx.fillRect(0, floorY - 60, width, height - floorY + 60);
+
+   ctx.beginPath();
+   ctx.moveTo(width * 0.12, floorY);
+   ctx.lineTo(width * 0.88, floorY);
+   ctx.strokeStyle = "rgba(105, 114, 128, 0.12)";
+   ctx.lineWidth = 1;
+   ctx.stroke();
+ }
+
+ function drawFrame(cx, topY, span, frameHeight, scale) {
+   const railHeight = 11 * scale;
+   const postWidth = 9 * scale;
+   const footHeight = 8 * scale;
+   const footWidth = 82 * scale;
+   const leftX = cx - span / 2;
+   const rightX = cx + span / 2;
+   const bottomY = topY + frameHeight;
+
+   ctx.save();
+
+   ctx.shadowColor = "rgba(55, 65, 81, 0.18)";
+   ctx.shadowBlur = 18 * scale;
+   ctx.shadowOffsetY = 10 * scale;
+
+   const railGrad = ctx.createLinearGradient(0, topY - 5 * scale, 0, topY + railHeight);
+   railGrad.addColorStop(0, "#f9fafb");
+   railGrad.addColorStop(0.22, "#c7ccd4");
+   railGrad.addColorStop(0.55, "#6f7a89");
+   railGrad.addColorStop(1, "#d9dde4");
+
+   ctx.fillStyle = railGrad;
+   drawRoundedRect(leftX - 22 * scale, topY, span + 44 * scale, railHeight, 4 * scale);
+   ctx.fill();
+
+   ctx.shadowColor = "transparent";
+
+   const postGrad = ctx.createLinearGradient(leftX - postWidth, 0, leftX + postWidth, 0);
+   postGrad.addColorStop(0, "#f7f8fa");
+   postGrad.addColorStop(0.25, "#8a94a3");
+   postGrad.addColorStop(0.55, "#535d6b");
+   postGrad.addColorStop(1, "#dfe3e8");
+
+   ctx.fillStyle = postGrad;
+   drawRoundedRect(leftX - postWidth / 2, topY + railHeight * 0.6, postWidth, frameHeight, 3 * scale);
+   ctx.fill();
+
+   drawRoundedRect(rightX - postWidth / 2, topY + railHeight * 0.6, postWidth, frameHeight, 3 * scale);
+   ctx.fill();
+
+   const footGrad = ctx.createLinearGradient(0, bottomY, 0, bottomY + footHeight);
+   footGrad.addColorStop(0, "#eef1f5");
+   footGrad.addColorStop(0.45, "#737d8b");
+   footGrad.addColorStop(1, "#cfd5dd");
+
+   ctx.fillStyle = footGrad;
+   drawRoundedRect(leftX - footWidth / 2, bottomY, footWidth, footHeight, 4 * scale);
+   ctx.fill();
+
+   drawRoundedRect(rightX - footWidth / 2, bottomY, footWidth, footHeight, 4 * scale);
+   ctx.fill();
+
+   ctx.globalAlpha = 0.45;
+   ctx.beginPath();
+   ctx.moveTo(leftX + 8 * scale, topY + railHeight);
+   ctx.lineTo(leftX + 64 * scale, bottomY);
+   ctx.moveTo(rightX - 8 * scale, topY + railHeight);
+   ctx.lineTo(rightX - 64 * scale, bottomY);
+   ctx.strokeStyle = "rgba(76, 86, 100, 0.45)";
+   ctx.lineWidth = 2 * scale;
+   ctx.stroke();
+
+   ctx.restore();
+ }
+
+ function drawString(pivotX, pivotY, ballX, ballY, radius, scale, activeAmount) {
+   const attachY = ballY - radius * 0.92;
+
+   ctx.save();
+
+   ctx.beginPath();
+   ctx.moveTo(pivotX, pivotY);
+   ctx.lineTo(ballX, attachY);
+   ctx.strokeStyle = "rgba(62, 72, 88, 0.78)";
+   ctx.lineWidth = Math.max(1, 1.15 * scale);
+   ctx.stroke();
+
+   ctx.beginPath();
+   ctx.arc(pivotX, pivotY, 3.1 * scale, 0, TAU);
+   ctx.fillStyle = "#667080";
+   ctx.fill();
+
+   ctx.beginPath();
+   ctx.arc(ballX, attachY, 2.3 * scale, 0, TAU);
+   ctx.fillStyle = `rgba(70, 78, 92, ${0.38 + activeAmount * 0.18})`;
+   ctx.fill();
+
+   ctx.restore();
+ }
+
+ function drawBall(x, y, radius, scale, activeAmount, compressionAmount) {
+   ctx.save();
+
+   const squashX = 1 + compressionAmount * 0.018;
+   const squashY = 1 - compressionAmount * 0.014;
+
+   ctx.translate(x, y);
+   ctx.scale(squashX, squashY);
+
+   ctx.shadowColor = "rgba(27, 35, 48, 0.28)";
+   ctx.shadowBlur = radius * (0.38 + activeAmount * 0.12);
+   ctx.shadowOffsetX = radius * 0.08;
+   ctx.shadowOffsetY = radius * 0.22;
+
+   const body = ctx.createRadialGradient(
+     -radius * 0.36,
+     -radius * 0.42,
+     radius * 0.05,
+     radius * 0.04,
+     radius * 0.08,
+     radius * 1.12
+   );
+
+   body.addColorStop(0, "#ffffff");
+   body.addColorStop(0.08, "#f7fbff");
+   body.addColorStop(0.18, "#dfe7ef");
+   body.addColorStop(0.36, "#9ca8b5");
+   body.addColorStop(0.58, "#687484");
+   body.addColorStop(0.78, "#3f4857");
+   body.addColorStop(1, "#1f2631");
+
+   ctx.beginPath();
+   ctx.arc(0, 0, radius, 0, TAU);
+   ctx.fillStyle = body;
+   ctx.fill();
+
+   ctx.shadowColor = "transparent";
+
+   const rim = ctx.createLinearGradient(-radius, -radius, radius, radius);
+   rim.addColorStop(0, "rgba(255,255,255,0.65)");
+   rim.addColorStop(0.28, "rgba(255,255,255,0.08)");
+   rim.addColorStop(0.72, "rgba(0,0,0,0.20)");
+   rim.addColorStop(1, "rgba(255,255,255,0.18)");
+
+   ctx.beginPath();
+   ctx.arc(0, 0, radius - 0.7 * scale, 0, TAU);
+   ctx.strokeStyle = rim;
+   ctx.lineWidth = 1.6 * scale;
+   ctx.stroke();
+
+   const highlight = ctx.createRadialGradient(
+     -radius * 0.38,
+     -radius * 0.48,
+     0,
+     -radius * 0.38,
+     -radius * 0.48,
+     radius * 0.52
+   );
+   highlight.addColorStop(0, "rgba(255,255,255,0.95)");
+   highlight.addColorStop(0.35, "rgba(255,255,255,0.48)");
+   highlight.addColorStop(1, "rgba(255,255,255,0)");
+
+   ctx.beginPath();
+   ctx.ellipse(-radius * 0.35, -radius * 0.43, radius * 0.34, radius * 0.18, -0.65, 0, TAU);
+   ctx.fillStyle = highlight;
+   ctx.fill();
+
+   ctx.beginPath();
+   ctx.ellipse(radius * 0.28, radius * 0.34, radius * 0.42, radius * 0.16, -0.35, 0, TAU);
+   ctx.fillStyle = "rgba(255,255,255,0.16)";
+   ctx.fill();
+
+   ctx.beginPath();
+   ctx.arc(0, 0, radius * 0.985, 0, TAU);
+   ctx.strokeStyle = "rgba(255,255,255,0.32)";
+   ctx.lineWidth = 0.9 * scale;
+   ctx.stroke();
+
+   ctx.restore();
+ }
+
+ function drawBallShadow(x, y, radius, floorY, activeAmount, scale) {
+   const distance = clamp((floorY - y) / (radius * 5), 0.4, 1.7);
+   const shadowW = radius * (1.55 + activeAmount * 0.22) / distance;
+   const shadowH = radius * 0.28 / distance;
+
+   const shadow = ctx.createRadialGradient(x, floorY, 0, x, floorY, shadowW);
+   shadow.addColorStop(0, `rgba(42, 48, 58, ${0.22 - activeAmount * 0.04})`);
+   shadow.addColorStop(0.52, "rgba(42, 48, 58, 0.09)");
+   shadow.addColorStop(1, "rgba(42, 48, 58, 0)");
+
+   ctx.save();
+   ctx.translate(x, floorY);
+   ctx.scale(1, shadowH / shadowW);
+   ctx.beginPath();
+   ctx.arc(0, 0, shadowW, 0, TAU);
+   ctx.fillStyle = shadow;
+   ctx.fill();
+   ctx.restore();
+ }
+
+ /*
+   Returns pendulum angles for all balls.
+
+   The timeline is split into two mirrored half-cycles:
+   1. Left ball starts outward, swings into impact, then right ball exits.
+   2. Right ball returns into impact, then left ball exits.
+
+   Angles are built from cosine pendulum arcs so each moving ball rotates
+   naturally around its pivot. The endpoints line up exactly, making the loop
+   continuous with no visual reset.
+ */
+ function getBallAngles(timeSeconds) {
+   const cycleDuration = 4.25 / ANIMATION_SPEED;
+   const halfDuration = cycleDuration / 2;
+   const t = ((timeSeconds % cycleDuration) + cycleDuration) % cycleDuration;
+   const halfIndex = Math.floor(t / halfDuration);
+   const u = (t % halfDuration) / halfDuration;
+
+   const angles = new Array(BALL_COUNT).fill(0);
+   const active = new Array(BALL_COUNT).fill(0);
+   const compression = new Array(BALL_COUNT).fill(0);
+
+   const leftPhase = halfIndex === 0;
+   const incomingIndex = leftPhase ? 0 : BALL_COUNT - 1;
+   const outgoingIndex = leftPhase ? BALL_COUNT - 1 : 0;
+   const incomingSign = leftPhase ? -1 : 1;
+   const outgoingSign = leftPhase ? 1 : -1;
+
+   const impactStart = 0.46;
+   const impactEnd = impactStart + IMPACT_HOLD;
+
+   const amplitude = MAX_SWING_ANGLE * (DAMPING + (1 - DAMPING) * Math.cos(t * 0.12));
+
+   if (u < impactStart) {
+     const p = u / impactStart;
+
+     /*
+       Incoming ball starts at the outer peak and reaches vertical at impact.
+       cos(p * PI / 2) gives a real pendulum-like deceleration near the top
+       and acceleration toward the center.
+     */
+     const a = incomingSign * amplitude * Math.cos(p * HALF_PI);
+     angles[incomingIndex] = a;
+     active[incomingIndex] = Math.abs(a) / amplitude;
+   } else if (u < impactEnd) {
+     const p = (u - impactStart) / IMPACT_HOLD;
+     const impulse = Math.sin(p * Math.PI);
+
+     compression[1] = impulse * 0.6;
+     compression[2] = impulse * 0.78;
+     compression[3] = impulse * 0.6;
+
+     for (let i = 1; i < BALL_COUNT - 1; i++) {
+       angles[i] = outgoingSign * 0.006 * impulse * (i - 2);
+       active[i] = impulse * 0.1;
+     }
+
+     angles[incomingIndex] = incomingSign * 0.003 * impulse;
+     angles[outgoingIndex] = outgoingSign * 0.012 * smoothstep(0.35, 1, p);
+     active[incomingIndex] = 0.18 * impulse;
+     active[outgoingIndex] = 0.22 * impulse;
+   } else {
+     const p = (u - impactEnd) / (1 - impactEnd);
+
+     /*
+       Outgoing ball leaves from vertical and climbs to the opposite peak.
+       sin(p * PI / 2) mirrors the incoming arc, so the next half-cycle starts
+       from rest at the raised side and swings back inward.
+     */
+     const a = outgoingSign * amplitude * Math.sin(p * HALF_PI);
+     angles[outgoingIndex] = a;
+     active[outgoingIndex] = Math.abs(a) / amplitude;
+   }
+
+   return { angles, active, compression };
+ }
+
+ function render(now) {
+   const elapsed = (now - startTime) / 1000;
+
+   drawBackground();
+
+   const minSide = Math.min(width, height);
+   const scale = clamp(minSide / 820, 0.56, 1.32);
+
+   const radius = Math.max(15, minSide * BALL_RADIUS_RATIO);
+   const stringLength = Math.max(150 * scale, minSide * STRING_LENGTH_RATIO);
+   const spacing = radius * 2.01;
+   const ballRowWidth = spacing * (BALL_COUNT - 1);
+
+   const centerX = width / 2;
+   const pivotY = height * 0.25;
+   const restY = pivotY + stringLength;
+
+   const frameSpan = ballRowWidth + radius * 4.2;
+   const frameHeight = stringLength + radius * 1.55;
+
+   const floorY = restY + radius * 1.9;
+
+   drawFrame(centerX, pivotY - 26 * scale, frameSpan, frameHeight, scale);
+
+   const state = getBallAngles(elapsed);
+
+   const balls = [];
+
+   for (let i = 0; i < BALL_COUNT; i++) {
+     const restX = centerX - ballRowWidth / 2 + i * spacing;
+     const pivotX = restX;
+     const angle = state.angles[i];
+
+     const x = pivotX + Math.sin(angle) * stringLength;
+     const y = pivotY + Math.cos(angle) * stringLength;
+
+     balls.push({
+       x,
+       y,
+       restX,
+       pivotX,
+       pivotY,
+       angle,
+       active: state.active[i],
+       compression: state.compression[i]
+     });
+   }
+
+   for (const ball of balls) {
+     drawBallShadow(ball.x, ball.y + radius, radius, floorY, ball.active, scale);
+   }
+
+   for (const ball of balls) {
+     drawString(ball.pivotX, ball.pivotY, ball.x, ball.y, radius, scale, ball.active);
+   }
+
+   /*
+     Draw from left to right so small overlaps look like polished contact.
+     Ball spacing is slightly more than 2r, preventing unrealistic overlap
+     while still reading as a touching Newton's cradle.
+   */
+   for (const ball of balls) {
+     drawBall(ball.x, ball.y, radius, scale, ball.active, ball.compression);
+   }
+
+   requestAnimationFrame(render);
+ }
+
+ requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>

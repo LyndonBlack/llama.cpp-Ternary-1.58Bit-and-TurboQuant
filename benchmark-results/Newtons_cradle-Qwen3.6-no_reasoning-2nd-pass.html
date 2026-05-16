@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Newton's Cradle</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background-color: #e0e0e0; }
+  
+  /* Centering the canvas */
+  body {
+    display: flex; 
+    justify-content: center; 
+    align-items: center;
+    /* Neutral, polished background */
+    background: linear-gradient(to bottom, #b0bec5, #e0e0e0 80%);
+  }
+  
+  canvas { 
+    display: block;
+    /* crisp rendering for thin strings */
+    image-rendering: -webkit-optimize-contrast; 
+  }
+</style>
+</head>
+<body>
+
+<canvas id="cradleCanvas"></canvas>
+
+<script>
+(function() {
+  "use strict";
+
+  /* =========================================
+     CONFIGURATION
+     ========================================= */
+  const CONFIG = {
+    ballCount: 5,
+    ballRadius: 45,
+    stringLength: 280,
+    maxAngle: Math.PI / 4.5, // ~40 degrees
+    fpsTarget: 60,
+    frameColor: '#2c3e50',
+    frameHighlight: '#546e7a',
+    bgColor: '#e0e0e0'
+  };
+
+  /* =========================================
+     STATE
+     ========================================= */
+  const canvas = document.getElementById('cradleCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  // Pre-rendered ball sprite for performance and quality
+  let ballSprite = null;
+  
+  // Scene dimensions
+  let width, height;
+  let pivotY; // The Y coordinate of the pivot bar center
+  let pivotStartX; // Left pivot coordinate
+  let pivotStep; // Distance between pivots
+  let pivotXs = []; // Array of all pivot X coordinates
+  let restingAngles = []; // Calculated angles to keep balls touching at rest
+
+  // Physics State
+  let angles = new Array(CONFIG.ballCount).fill(0);
+  let phaseTimer = 0;
+  let lastTime = 0;
+
+  /* =========================================
+     INITIALIZATION
+     ========================================= */
+  function init() {
+    resize();
+    createBallSprite();
+    window.addEventListener('resize', resize);
+    requestAnimationFrame(loop);
+  }
+
+  function resize() {
+    // Handle High DPI displays
+    const dpr = window.devicePixelRatio || 1;
+    width = window.innerWidth;
+    height = window.innerHeight;
+    
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
+    ctx.scale(dpr, dpr);
+
+    // Calculate geometry based on new size
+    // We center the cradle horizontally
+    const cradleWidth = Math.min(width * 0.8, 600);
+    pivotXs = [];
+    for (let i = 0; i < CONFIG.ballCount; i++) {
+      // Evenly distribute pivots
+      pivotXs.push((width - cradleWidth) / 2 + (cradleWidth / (CONFIG.ballCount - 1)) * i);
+    }
+    
+    // Pivot Y is at 15% from top
+    pivotY = height * 0.15; 
+
+    // Calculate Resting Angles
+    // We need to calculate where the pivots are relative to the balls touching.
+    // If the balls are touching, the horizontal distance from the frame center 
+    // to a ball center is: i * (2 * Radius).
+    for (let i = 0; i < CONFIG.ballCount; i++) {
+      // Horizontal distance from the "visual center" of the pivot bar to the pivot point
+      const pivotOffsetX = pivotXs[i] - (width / 2);
+      
+      // We want the string to point such that the ball center is exactly at:
+      // (width/2) - (ballRadius) + (i * 2 * ballRadius)
+      const targetBallX = (width / 2) - CONFIG.ballRadius + (i * 2 * CONFIG.ballRadius);
+      
+      // The horizontal distance from pivot to ball center
+      const dx = targetBallX - pivotXs[i];
+      
+      // Calculate the angle to point directly at that target
+      restingAngles[i] = Math.asin(Math.min(1, Math.max(-1, dx / CONFIG.stringLength)));
+    }
+  }
+
+  /* =========================================
+     SPRITE GENERATION
+     ========================================= */
+  function createBallSprite() {
+    const size = (CONFIG.ballRadius * 2) + 10; // Buffer for reflection
+    ballSprite = document.createElement('canvas');
+    ballSprite.width = size;
+    ballSprite.height = size;
+    const sCtx = ballSprite.getContext('2d');
+    const center = size / 2;
+    const radius = CONFIG.ballRadius + 2;
+
+    // 1. Base Chrome Sphere
+    const grad = sCtx.createRadialGradient(center - 15, center - 15, 5, center, center, radius);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.2, '#e0e0e0');
+    grad.addColorStop(0.5, '#888888');
+    grad.addColorStop(0.9, '#333333');
+    grad.addColorStop(1, '#111111');
+
+    sCtx.fillStyle = grad;
+    sCtx.beginPath();
+    sCtx.arc(center, center, radius, 0, Math.PI * 2);
+    sCtx.fill();
+
+    // 2. Specular Highlight (Glossy top-left)
+    const specGrad = sCtx.createRadialGradient(center - 15, center - 20, 2, center - 15, center - 20, radius * 0.8);
+    specGrad.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+    specGrad.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)');
+    specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+    sCtx.fillStyle = specGrad;
+    sCtx.beginPath();
+    sCtx.arc(center, center, radius, 0, Math.PI * 2);
+    sCtx.fill();
+
+    // 3. Rim Light / Edge
+    sCtx.beginPath();
+    sCtx.arc(center, center, radius, 0, Math.PI * 2);
+    sCtx.strokeStyle = 'rgba(0,0,0,0.3)';
+    sCtx.lineWidth = 1;
+    sCtx.stroke();
+  }
+
+  /* =========================================
+     PHYSICS ENGINE
+     ========================================= */
+  function updatePhysics(dt) {
+    // dt is in seconds, but we scale it for simulation speed
+    // The sequence is divided into phases.
+    // Total cycle time:
+    const swingTime = 0.35; // Time for a ball to go max angle -> 0
+    const impactTime = 0.05;
+    const transitionTime = 0.08; // Fade time for the receiving ball
+    const phaseDuration = swingTime;
+
+    // Accumulate time
+    phaseTimer += dt;
+
+    // Determine which phase of the 4-step cycle we are in (0-3)
+    // 0: Left swings in -> Hits
+    // 1: Right swings out -> Returns (Transfer happened)
+    // 2: Right swings in -> Hits
+    // 3: Left swings out -> Returns (Transfer happened)
+    
+    const totalCycleTime = phaseDuration * 4;
+    const cycleTime = phaseTimer % totalCycleTime;
+    const currentPhase = Math.floor(cycleTime / phaseDuration);
+    const phaseProgress = (cycleTime % phaseDuration) / phaseDuration; // 0.0 to 1.0
+
+    // Reset angles to RESTING angles (touching at center) for calculation
+    // This prevents the "gap" glitch where they return to a floating position
+    for (let i = 0; i < CONFIG.ballCount; i++) {
+      angles[i] = restingAngles[i];
+    }
+
+    // Logic for Pendulum Motion (Simple Harmonic Motion approx)
+    // x(t) = A * cos(wt)
+    
+    if (currentPhase === 0) {
+      // Phase 0: Left Ball swings IN (Angle goes -Max -> 0)
+      // Ball 0 (Leftmost) moves
+      // Angle should go from Resting + Max to Resting
+      
+      const swing = Math.cos(phaseProgress * Math.PI);
+      angles[0] = restingAngles[0] + (swing * -CONFIG.maxAngle);
+    } 
+    else if (currentPhase === 1) {
+      // Phase 1: Left stops, Right Ball swings OUT (0 -> Max)
+      // This is the visual "transfer" phase. 
+      // We fade the Left ball down and fade the Right ball up.
+      
+      // Left ball (0)
+      angles[0] = restingAngles[0] + ((1 - phaseProgress) * -CONFIG.maxAngle);
+      
+      // Right ball (4) starts moving
+      if (phaseProgress > 0.2) { // Delay start slightly for impact
+        const rightProgress = (phaseProgress - 0.2) / 0.8;
+        angles[4] = restingAngles[4] + (CONFIG.maxAngle * Math.cos(rightProgress * Math.PI * 0.5));
+      }
+    }
+    else if (currentPhase === 2) {
+      // Phase 2: Right Ball swings IN (Angle goes Max -> 0)
+      angles[4] = restingAngles[4] + (Math.cos(phaseProgress * Math.PI) * CONFIG.maxAngle);
+    }
+    else if (currentPhase === 3) {
+      // Phase 3: Right stops, Left Ball swings OUT (0 -> -Max)
+      // Fade Right ball down, fade Left ball up
+      angles[4] = restingAngles[4] + ((1 - phaseProgress) * CONFIG.maxAngle);
+      
+      if (phaseProgress > 0.2) {
+        const leftProgress = (phaseProgress - 0.2) / 0.8;
+        angles[0] = restingAngles[0] + (Math.cos(leftProgress * Math.PI * 0.5) * -CONFIG.maxAngle);
+      }
+    }
+
+    // Subtle impact compression (Middle balls vibrate slightly)
+    // We can add a tiny sine wave based on phase transition, but let's keep it clean
+    // to avoid visual noise.
+  }
+
+  /* =========================================
+     RENDERER
+     ========================================= */
+  function draw() {
+    ctx.clearRect(0, 0, width, height);
+
+    const pivotBarY = pivotY;
+    const pivotBarThickness = 12;
+    const leftPivot = pivotXs[0];
+    const rightPivot = pivotXs[pivotXs.length - 1];
+    const barLength = rightPivot - leftPivot;
+
+    // 1. Draw Frame (Background elements)
+    drawFrame(leftPivot, rightPivot, pivotBarY, pivotBarThickness);
+
+    // 2. Draw Shadows (Before strings/balls)
+    for (let i = 0; i < CONFIG.ballCount; i++) {
+      drawShadow(pivotXs[i], i, pivotBarY);
+    }
+
+    // 3. Draw Strings (Behind balls)
+    for (let i = 0; i < CONFIG.ballCount; i++) {
+      const pivotX = pivotXs[i];
+      // Calculate ball position based on angle
+      const ballX = pivotX + CONFIG.stringLength * Math.sin(angles[i]);
+      const ballY = pivotBarY + pivotBarThickness / 2 + CONFIG.stringLength * Math.cos(angles[i]);
+      
+      // Update stored positions for the sprite loop
+      // We store the current computed angle/position in a temporary array if we needed it elsewhere,
+      // but here we just pass it to the draw function.
+      drawString(pivotX, pivotBarY + pivotBarThickness / 2, ballX, ballY);
+    }
+
+    // 4. Draw Balls
+    // We re-calculate positions to ensure sprite coordinates match the strings perfectly
+    for (let i = 0; i < CONFIG.ballCount; i++) {
+      const pivotX = pivotXs[i];
+      const pivotYLoc = pivotBarY + pivotBarThickness / 2;
+      
+      const ballX = pivotX + CONFIG.stringLength * Math.sin(angles[i]);
+      const ballY = pivotYLoc + CONFIG.stringLength * Math.cos(angles[i]);
+
+      if (ballSprite) {
+        // Draw the sprite centered on the calculated ballY
+        ctx.drawImage(ballSprite, ballX - ballSprite.width / 2, ballY - ballSprite.height / 2);
+      }
+    }
+  }
+
+  function drawFrame(lX, rX, pY, thickness) {
+    const barY = pY;
+    
+    // Main Horizontal Bar
+    ctx.fillStyle = CONFIG.frameColor;
+    ctx.fillRect(lX - 20, barY - thickness/2, (rX - lX) + 40, thickness);
+    
+    // Bar Highlight
+    ctx.fillStyle = CONFIG.frameHighlight;
+    ctx.fillRect(lX - 20, barY - thickness/2, (rX - lX) + 40, 2);
+
+    // Legs (A-frame style)
+    const legWidth = 8;
+    const footSpread = 60;
+    const groundY = height * 0.95; // Feet position
+
+    // Left Leg
+    const lPivotX = lX - 20;
+    const lPivotY = barY + thickness/2;
+    const lFootX = lPivotX - footSpread;
+    
+    ctx.lineWidth = legWidth;
+    ctx.lineCap = 'round';
+    
+    // Gradient for legs
+    const legGrad = ctx.createLinearGradient(lPivotX, lPivotY, lFootX, groundY);
+    legGrad.addColorStop(0, '#34495e');
+    legGrad.addColorStop(1, '#2c3e50');
+    ctx.strokeStyle = legGrad;
+
+    ctx.beginPath();
+    ctx.moveTo(lPivotX, lPivotY);
+    ctx.lineTo(lFootX, groundY);
+    ctx.stroke();
+
+    // Right Leg
+    const rPivotX = rX + 20;
+    const rPivotY = barY + thickness/2;
+    const rFootX = rPivotX + footSpread;
+
+    const legGrad2 = ctx.createLinearGradient(rPivotX, rPivotY, rFootX, groundY);
+    legGrad2.addColorStop(0, '#34495e');
+    legGrad2.addColorStop(1, '#2c3e50');
+    ctx.strokeStyle = legGrad2;
+
+    ctx.beginPath();
+    ctx.moveTo(rPivotX, rPivotY);
+    ctx.lineTo(rFootX, groundY);
+    ctx.stroke();
+
+    // Base Bar
+    ctx.fillStyle = '#2c3e50';
+    ctx.fillRect(lFootX - 20, groundY, (rFootX - lFootX) + 40, 8);
+  }
+
+  function drawString(px, py, bx, by) {
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(bx, by);
+    ctx.strokeStyle = '#666';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    
+    // Highlight on string
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(bx, by);
+    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  function drawShadow(pivotX, index, pY) {
+    // Shadow is always on the "ground" (approximate)
+    // It should move slightly based on ball X position to look realistic
+    const ballX = pivotX + CONFIG.stringLength * Math.sin(angles[index]);
+    
+    // Offset from the ball's actual X to make it look grounded
+    const shadowY = height * 0.95;
+    
+    const dx = ballX - pivotX;
+    const shadowX = pivotX + dx * 1.5; // Parallax effect for depth
+
+    ctx.beginPath();
+    ctx.ellipse(shadowX, shadowY, CONFIG.ballRadius * 1.2, CONFIG.ballRadius * 0.3, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+    ctx.fill();
+  }
+
+  /* =========================================
+     MAIN LOOP
+     ========================================= */
+  function loop(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    const dt = (timestamp - lastTime) / 1000; // Delta time in seconds
+    lastTime = timestamp;
+
+    // Clamp dt to prevent explosion on tab switch
+    const safeDt = Math.min(dt, 0.1); 
+
+    // Update physics
+    // We multiply time by a speed factor to control swing speed
+    updatePhysics(safeDt * 1.5);
+
+    // Render
+    draw();
+
+    requestAnimationFrame(loop);
+  }
+
+  // Start
+  init();
+
+})();
+</script>
+</body>
+</html>
+

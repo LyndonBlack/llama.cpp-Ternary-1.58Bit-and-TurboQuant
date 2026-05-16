@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newton's Cradle</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body {
+            width: 100%; height: 100%;
+            overflow: hidden;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(ellipse at 50% 30%, #f5f5f5 0%, #d8d8d8 60%, #b8b8b8 100%);
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+<canvas id="cradle"></canvas>
+<script>
+(function () {
+    "use strict";
+
+    // ── Constants ──────────────────────────────────────────────
+    const NUM_BALLS      = 5;
+    const BALL_RADIUS    = 28;
+    const STRING_LENGTH  = 220;
+    const MAX_ANGLE      = 26 * Math.PI / 180;   // peak swing angle in radians
+    const CYCLE_PERIOD   = 2.2;                  // seconds for one full animation cycle
+    const IMPACT_VIB_AMP = 0.007;                // tiny angle for middle-ball vibration
+    const IMPACT_VIB_DECAY = 18;                 // Gaussian decay rate for vibration
+
+    // ── Canvas Setup ───────────────────────────────────────────
+    const canvas = document.getElementById("cradle");
+    const ctx    = canvas.getContext("2d");
+
+    function resize() {
+        canvas.width  = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    // ── Animation Timing ───────────────────────────────────────
+    let startTime = performance.now();
+
+    /**
+     * Compute the swing angle for a given ball at a normalized time u ∈ [0,1).
+     *
+     * Cycle structure (one full period):
+     *   Phase 1  [0.00, 0.25):  Ball 0 swings from -MAX → 0  (left → center)
+     *   Phase 2  [0.25, 0.50):  Ball 4 swings from  0 → +MAX (center → right)
+     *   Phase 3  [0.50, 0.75):  Ball 4 swings from +MAX → 0  (right → center)
+     *   Phase 4  [0.75, 1.00):  Ball 0 swings from  0 → -MAX (center → left)
+     *
+     * The motion within each half-phase uses a sin/cos profile that
+     * produces smooth acceleration (pendulum-like easing).
+     */
+    function getBallAngle(index, u) {
+        let angle = 0;
+
+        if (index === 0) {
+            // ── Leftmost ball ──────────────────────────────────
+            if (u < 0.25) {
+                // Phase 1: -MAX → 0
+                let v = u / 0.25;                          // 0 → 1
+                angle = -MAX_ANGLE * Math.cos(Math.PI * v / 2);
+            } else if (u < 0.75) {
+                // Phases 2-3: at rest
+                angle = 0;
+            } else {
+                // Phase 4: 0 → -MAX
+                let v = (u - 0.75) / 0.25;                 // 0 → 1
+                angle = -MAX_ANGLE * Math.sin(Math.PI * v / 2);
+            }
+        } else if (index === 4) {
+            // ── Rightmost ball ─────────────────────────────────
+            if (u >= 0.25 && u < 0.50) {
+                // Phase 2: 0 → +MAX
+                let v = (u - 0.25) / 0.25;                 // 0 → 1
+                angle =  MAX_ANGLE * Math.sin(Math.PI * v / 2);
+            } else if (u >= 0.50 && u < 0.75) {
+                // Phase 3: +MAX → 0
+                let v = (u - 0.50) / 0.25;                 // 0 → 1
+                angle =  MAX_ANGLE * Math.cos(Math.PI * v / 2);
+            }
+            // Phases 1,4: at rest
+        }
+
+        // ── Middle balls (1, 2, 3): tiny vibration at impact ───
+        if (index >= 1 && index <= 3) {
+            for (let impact of [0.25, 0.75]) {
+                let dist = Math.abs(u - impact);
+                if (dist < 0.04) {
+                    // Gaussian envelope × high-frequency sinusoid
+                    angle += IMPACT_VIB_AMP
+                        * Math.exp(-IMPACT_VIB_DECAY * dist * dist)
+                        * Math.cos(20 * Math.PI * (u - impact));
+                }
+            }
+        }
+
+        return angle;
+    }
+
+    // ── Drawing Helpers ────────────────────────────────────────
+
+    /**
+     * Draw the support frame: two vertical posts, one horizontal bar, and a base.
+     */
+    function drawFrame(cx, pivotY, floorY) {
+        let halfSpread = (NUM_BALLS - 1) * BALL_RADIUS;
+        let frameLeft  = cx - halfSpread - 48;
+        let frameRight = cx + halfSpread + 48;
+        let postW      = 7;
+        let barH       = 13;
+
+        // ── Posts ──────────────────────────────────────────────
+        // Gradient for metallic post look
+        function postGrad(x) {
+            let g = ctx.createLinearGradient(x - postW / 2, 0, x + postW / 2, 0);
+            g.addColorStop(0, "#5a5a5a");
+            g.addColorStop(0.35, "#888");
+            g.addColorStop(0.5, "#aaa");
+            g.addColorStop(0.65, "#888");
+            g.addColorStop(1, "#5a5a5a");
+            return g;
+        }
+
+        ctx.fillStyle = postGrad(frameLeft);
+        ctx.fillRect(frameLeft - postW / 2, pivotY - 4, postW, floorY - pivotY + 4);
+
+        ctx.fillStyle = postGrad(frameRight);
+        ctx.fillRect(frameRight - postW / 2, pivotY - 4, postW, floorY - pivotY + 4);
+
+        // ── Top bar ────────────────────────────────────────────
+        let barL = frameLeft - 18, barW = frameRight - frameLeft + 36;
+        let g = ctx.createLinearGradient(0, pivotY - barH / 2, 0, pivotY + barH / 2);
+        g.addColorStop(0, "#999");
+        g.addColorStop(0.25, "#bbb");
+        g.addColorStop(0.5, "#ccc");
+        g.addColorStop(0.75, "#aaa");
+        g.addColorStop(1, "#777");
+        ctx.fillStyle = g;
+        roundRect(ctx, barL, pivotY - barH / 2, barW, barH, 3);
+        ctx.fill();
+
+        // Top-edge highlight
+        ctx.fillStyle = "rgba(255,255,255,0.35)";
+        roundRect(ctx, barL + 2, pivotY - barH / 2 + 1, barW - 4, 2, 1);
+        ctx.fill();
+
+        // Bottom-edge shadow
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
+        roundRect(ctx, barL + 2, pivotY + barH / 2 - 2.5, barW - 4, 2, 1);
+        ctx.fill();
+
+        // ── Base plate ─────────────────────────────────────────
+        let baseH = 7;
+        let baseL = frameLeft - 38, baseW = frameRight - frameLeft + 76;
+        g = ctx.createLinearGradient(0, floorY - baseH, 0, floorY + 2);
+        g.addColorStop(0, "#888");
+        g.addColorStop(0.4, "#aaa");
+        g.addColorStop(1, "#666");
+        ctx.fillStyle = g;
+        roundRect(ctx, baseL, floorY - baseH, baseW, baseH, 2);
+        ctx.fill();
+
+        ctx.fillStyle = "rgba(255,255,255,0.2)";
+        roundRect(ctx, baseL + 2, floorY - baseH + 1, baseW - 4, 1.5, 1);
+        ctx.fill();
+
+        // ── Pivot dots ─────────────────────────────────────────
+        for (let i = 0; i < NUM_BALLS; i++) {
+            let px = cx + (i - 2) * BALL_RADIUS * 2;
+            ctx.beginPath();
+            ctx.arc(px, pivotY, 3.5, 0, Math.PI * 2);
+            let pg = ctx.createRadialGradient(px - 1, pivotY - 1, 0, px, pivotY, 4);
+            pg.addColorStop(0, "#ccc");
+            pg.addColorStop(1, "#555");
+            ctx.fillStyle = pg;
+            ctx.fill();
+        }
+    }
+
+    /**
+     * Draw a thin suspension string from pivot to ball.
+     */
+    function drawString(px, py, bx, by) {
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(bx, by);
+        ctx.strokeStyle = "#3a3a3a";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    /**
+     * Draw a drop-shadow ellipse beneath a ball, projected onto the floor.
+     */
+    function drawShadow(bx, by, floorY) {
+        let heightRatio = (by - (canvas.height * 0.25)) / STRING_LENGTH;
+        let scale = 1 + Math.max(0, -heightRatio) * 0.25;
+        let alpha = 0.22 * Math.max(0.3, 1 + heightRatio);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(bx, floorY, BALL_RADIUS * scale, 5 * scale, 0, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(0,0,0," + alpha.toFixed(3) + ")";
+        ctx.filter = "blur(3px)";
+        ctx.fill();
+        ctx.filter = "none";
+        ctx.restore();
+    }
+
+    /**
+     * Draw a single metallic sphere with specular highlights and rim shading.
+     */
+    function drawBall(bx, by) {
+        let r = BALL_RADIUS;
+
+        // ── Main metallic gradient ─────────────────────────────
+        // Light source is top-left; gradient centre offset accordingly
+        let g = ctx.createRadialGradient(
+            bx - r * 0.30, by - r * 0.35, r * 0.02,
+            bx + r * 0.10, by + r * 0.05, r * 1.05
+        );
+        g.addColorStop(0,   "#ffffff");
+        g.addColorStop(0.12,"#f2f2f2");
+        g.addColorStop(0.30,"#d4d4d4");
+        g.addColorStop(0.55,"#a0a0a0");
+        g.addColorStop(0.80,"#6e6e6e");
+        g.addColorStop(1,   "#3d3d3d");
+
+        ctx.beginPath();
+        ctx.arc(bx, by, r, 0, Math.PI * 2);
+        ctx.fillStyle = g;
+        ctx.fill();
+
+        // ── Primary specular highlight ─────────────────────────
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(bx - r * 0.22, by - r * 0.30, r * 0.20, r * 0.14, -0.45, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.75)";
+        ctx.fill();
+        ctx.restore();
+
+        // ── Secondary (softer) highlight ───────────────────────
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(bx + r * 0.12, by + r * 0.18, r * 0.10, r * 0.065, 0.6, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255,255,255,0.28)";
+        ctx.fill();
+        ctx.restore();
+
+        // ── Bottom-right rim shadow for depth ──────────────────
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(bx, by, r, -0.2, 1.2);
+        ctx.strokeStyle = "rgba(0,0,0,0.18)";
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.restore();
+
+        // ── Crisp outline ──────────────────────────────────────
+        ctx.beginPath();
+        ctx.arc(bx, by, r, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(0,0,0,0.12)";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+    }
+
+    // Rounded-rectangle helper
+    function roundRect(ctx, x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.lineTo(x + w - r, y);
+        ctx.arcTo(x + w, y,     x + w, y + r, r);
+        ctx.lineTo(x + w, y + h - r);
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+        ctx.lineTo(x + r, y + h);
+        ctx.arcTo(x,     y + h, x,     y + h - r, r);
+        ctx.lineTo(x,     y + r);
+        ctx.arcTo(x,     y,     x + r, y,     r);
+        ctx.closePath();
+    }
+
+    // ── Main Render Loop ──────────────────────────────────────
+
+    function render() {
+        let elapsed  = (performance.now() - startTime) / 1000;
+        let u        = (elapsed % CYCLE_PERIOD) / CYCLE_PERIOD;  // normalised 0-1
+
+        let W = canvas.width;
+        let H = canvas.height;
+
+        // Clear
+        ctx.clearRect(0, 0, W, H);
+
+        // Layout parameters
+        let centerX = W / 2;
+        let pivotY  = H * 0.22;
+        let floorY  = H * 0.88;
+
+        // Draw floor subtle gradient
+        let floorG = ctx.createLinearGradient(0, floorY - 20, 0, floorY + 10);
+        floorG.addColorStop(0, "rgba(0,0,0,0)");
+        floorG.addColorStop(1, "rgba(0,0,0,0.06)");
+        ctx.fillStyle = floorG;
+        ctx.fillRect(centerX - 300, floorY - 20, 600, 30);
+
+        // Draw frame
+        drawFrame(centerX, pivotY, floorY);
+
+        // Draw each ball (back → front order; all balls same depth)
+        for (let i = 0; i < NUM_BALLS; i++) {
+            let restX = centerX + (i - 2) * BALL_RADIUS * 2;
+            let angle = getBallAngle(i, u);
+
+            // Pendulum position
+            let bx = restX + STRING_LENGTH * Math.sin(angle);
+            let by = pivotY  + STRING_LENGTH * Math.cos(angle);
+
+            drawShadow(bx, by, floorY);
+            drawString(restX, pivotY, bx, by);
+            drawBall(bx, by);
+        }
+
+        requestAnimationFrame(render);
+    }
+
+    requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
+
