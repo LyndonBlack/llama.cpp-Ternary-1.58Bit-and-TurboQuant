@@ -26,7 +26,7 @@ struct llama_entropy_head {
 };
 
 // Full entropy profile for a model
-struct llama_entropy_profile {
+struct LLAMA_API llama_entropy_profile {
     int32_t                   n_layers = 0;
     int32_t                   n_heads  = 0;
     float                     mean_entropy = 0.0f;
@@ -43,11 +43,11 @@ struct llama_entropy_profile {
 // Calibration function: run the model on calibration sequences and
 // capture per-head attention entropy.
 // Returns the entropy profile, or nullptr on failure.
-struct llama_entropy_profile * llama_entropy_calibrate(
+LLAMA_API struct llama_entropy_profile * llama_entropy_calibrate(
         struct llama_context * ctx,
         const std::vector<const char *> & prompts);  // calibration sequences
 
-void llama_entropy_profile_free(struct llama_entropy_profile * profile);
+LLAMA_API void llama_entropy_profile_free(struct llama_entropy_profile * profile);
 
 // Given an entropy profile and a target compression ratio, compute
 // per-head retention budgets.
