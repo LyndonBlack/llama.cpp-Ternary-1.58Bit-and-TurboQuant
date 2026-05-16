@@ -1,6 +1,6 @@
 #include "allreduce.cuh"
 
-#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA)
+#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && !defined(GGML_CUDA_NO_FA_ALLREDUCE)
 
 #include "convert.cuh"
 #include "ggml-impl.h"
@@ -965,4 +965,4 @@ bool ggml_cuda_ar_allreduce(ggml_cuda_ar_pipeline *, ggml_backend_t *, ggml_tens
     return false;
 }
 
-#endif // !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA)
+#endif // !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && !defined(GGML_CUDA_NO_FA_ALLREDUCE)
