@@ -29,7 +29,8 @@ struct llama_cparams {
     float yarn_beta_slow;
 
     bool embeddings;
-    bool embeddings_pre_norm; // also extract the hidden state before the final output norm
+    bool embeddings_pre_norm;        // also extract the hidden state before the final output norm
+    bool embeddings_pre_norm_masked; // extract for only rows where batch.logits != 0
     bool causal_attn;
     bool entropy_calibration = false;
     std::function<ggml_type(int32_t il)> layer_type_k_cb;
